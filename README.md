@@ -4,6 +4,8 @@ By Jeremiah Hockett, Chiemeka Nwakama, Aditya Parida, and Cheo Cedillo.
 
 A modern C++/CUDA C hybrid port (or rewrite) of Aleae, a chemical reaction network simulator written by Marc Riedel. It adds GPU parallelism to individual trial, adding significant speedup to each trial. This was done as the final project for EE 5351.
 
+This was written with pernission from Marc Riedel.
+
 ## Motivation
 
 Aleae is rather slow and is known to have memory-related crashes. Although cuAleae was written to address the former, reliability was also a concern. A different CRN simulator, [MARlea](https://github.com/nadaso8/MARlea/), achieves a speedup via CPU parallelism across trials while ensuring reliability.
