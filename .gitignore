@@ -1,0 +1,13 @@
+*~
+
+*
+
+# Ignore all files except:
+!src/*
+!src/
+!inc/*
+!inc/
+
+!.gitignore
+!Makefile
+!README.md
