@@ -1,4 +1,4 @@
-# Parallel Aleae (cuAleae)
+# cuAleae
 
 By Jeremiah Hockett, Chiemeka Nwakama, Aditya Parida, and Cheo Cedillo.
 
