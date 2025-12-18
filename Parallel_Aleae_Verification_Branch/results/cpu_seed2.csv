@@ -1,4 +1,0 @@
-impl,seed,state_file,reaction_file,trials,time_limit,steps,chem,mean,variance,threshold_hits,threshold_pct
-cpu,2,input_files/test.in,input_files/test.r,5000,-1,-1,a,3.1318,3.22803,711,14.22
-cpu,2,input_files/test.in,input_files/test.r,5000,-1,-1,b,7.054,2.85348,4289,85.78
-cpu,2,input_files/test.in,input_files/test.r,5000,-1,-1,c,4.955,0.891375,1254,25.08
