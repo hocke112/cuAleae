@@ -1,0 +1,4 @@
+impl,seed,state_file,reaction_file,trials,time_limit,steps,chem,mean,variance,threshold_hits,threshold_pct
+cuda,7,input_files/test.in,input_files/test.r,5000,-1,-1,a,3.0964,3.19071,0,0
+cuda,7,input_files/test.in,input_files/test.r,5000,-1,-1,b,7.0832,2.77828,0,0
+cuda,7,input_files/test.in,input_files/test.r,5000,-1,-1,c,4.9572,0.870968,0,0
