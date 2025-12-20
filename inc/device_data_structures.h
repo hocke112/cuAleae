@@ -16,8 +16,20 @@ struct field {
     unsigned int *end_bounds;
 } typedef field_t;
 
+struct crn_cu {
+    chem_arr_t chem_arrays;
+    field_t reactants;
+    field_t products;
+    float *rates;
+    size_t num_chems = 0;
+    size_t num_reactions = 0;
+    size_t num_reactants = 0;
+    size_t num_products = 0;
+} typedef crn_t;
+
 struct sim_parameters {
     double max_time = -1.0;
+    int max_steps = -1;
     unsigned verbosity_bit_fields = 0;
 } typedef sim_params_t;
  
