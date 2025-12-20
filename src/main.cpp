@@ -146,42 +146,43 @@ int main (int argc, char *argv[]) {
     sim_params_t sim_params;
     sim_params.verbosity_bit_fields = verbosity;
     sim_params.max_time = num_time;
+    sim_params.max_steps = num_steps;
+
+    crn_t crn_h;
 
 
     //total number of chemicals in network
-    unsigned int num_chems = crn.chems.size();
+    crn_h.num_chems = crn.chems.size();
     //total number of reactions in network
-    unsigned int num_reactions = crn.reactions.size();
+    crn_h.num_reactions = crn.reactions.size();
 
 
     // This counts all of the reactants an totals products in all reactions
-    size_t total_reactants = 0;
-    size_t total_products  = 0;
+    crn_h.num_reactants = 0;
+    crn_h.num_products  = 0;
 
     //for loops loops through all reactions and adds these amounts to our total variables
     for (auto& rptr : crn.reactions) {
-        total_reactants += rptr->reactants.size();
-        total_products  += rptr->products.size();
+        crn_h.num_reactants += rptr->reactants.size();
+        crn_h.num_products  += rptr->products.size();
     }
 
     //Allocates all reactants
-    field_t reactants_h;
-    reactants_h.chem_ids     = (chem_id_t*)malloc(total_reactants * sizeof(chem_id_t));
-    reactants_h.deltas       = (unsigned int*)malloc(total_reactants * sizeof(unsigned int));
-    reactants_h.start_bounds = (unsigned int*)malloc(num_reactions * sizeof(unsigned int));
-    reactants_h.end_bounds   = (unsigned int*)malloc(num_reactions * sizeof(unsigned int));
+    crn_h.reactants.chem_ids     = (chem_id_t*)malloc(crn_h.num_reactants * sizeof(chem_id_t));
+    crn_h.reactants.deltas       = (unsigned int*)malloc(crn_h.num_reactants * sizeof(unsigned int));
+    crn_h.reactants.start_bounds = (unsigned int*)malloc(crn_h.num_reactions * sizeof(unsigned int));
+    crn_h.reactants.end_bounds   = (unsigned int*)malloc(crn_h.num_reactions * sizeof(unsigned int));
 
     // Allocates all products
-    field_t products_h;
-    products_h.chem_ids     = (chem_id_t*)malloc(total_products * sizeof(chem_id_t));
-    products_h.deltas       = (unsigned int*)malloc(total_products * sizeof(unsigned int));
-    products_h.start_bounds = (unsigned int*)malloc(num_reactions * sizeof(unsigned int));
-    products_h.end_bounds   = (unsigned int*)malloc(num_reactions * sizeof(unsigned int));
+    crn_h.products.chem_ids     = (chem_id_t*)malloc(crn_h.num_products * sizeof(chem_id_t));
+    crn_h.products.deltas       = (unsigned int*)malloc(crn_h.num_products * sizeof(unsigned int));
+    crn_h.products.start_bounds = (unsigned int*)malloc(crn_h.num_reactions * sizeof(unsigned int));
+    crn_h.products.end_bounds   = (unsigned int*)malloc(crn_h.num_reactions * sizeof(unsigned int));
 
     //populate the reactant host struct and product host struct
     size_t r_idx = 0; //reaction index
     size_t p_idx = 0; // product index
-    for (unsigned i = 0; i < num_reactions; i++) {
+    for (unsigned i = 0; i < crn_h.num_reactions; i++) {
         const reaction_t* r = crn.reactions[i].get();
 
         if (r->reactant_deltas.size() != r->reactants.size()) {
@@ -193,13 +194,13 @@ int main (int argc, char *argv[]) {
         }
 
         // fiiling reactants
-        reactants_h.start_bounds[i] = r_idx;
+        crn_h.reactants.start_bounds[i] = r_idx;
         for (size_t j = 0; j < r->reactants.size(); j++) {
-            reactants_h.chem_ids[r_idx] = r->reactants[j];
-            reactants_h.deltas[r_idx]   = r->reactant_deltas[j];
+            crn_h.reactants.chem_ids[r_idx] = r->reactants[j];
+            crn_h.reactants.deltas[r_idx]   = r->reactant_deltas[j];
             r_idx++;
         }
-        reactants_h.end_bounds[i] = r_idx;
+        crn_h.reactants.end_bounds[i] = r_idx;
 
         if (r->product_deltas.size() != r->products.size()) {
             std::cerr << "Products are not paired with coefficients properly. Check " << argv[2] << " for any syntax errors." << std::endl;
@@ -210,41 +211,40 @@ int main (int argc, char *argv[]) {
         }
 
         // filling products
-        products_h.start_bounds[i] = p_idx;
+        crn_h.products.start_bounds[i] = p_idx;
         for (size_t j = 0; j < r->products.size(); j++) {
-            products_h.chem_ids[p_idx] = r->products[j];
-            products_h.deltas[p_idx]   = r->product_deltas[j];
+            crn_h.products.chem_ids[p_idx] = r->products[j];
+            crn_h.products.deltas[p_idx]   = r->product_deltas[j];
             p_idx++;
         }
-        products_h.end_bounds[i] = p_idx;
+        crn_h.products.end_bounds[i] = p_idx;
     }
 
     //Put all the data in the struct to hold all of the arrays of chemicals/substances in the network
-    chem_arr_t chem_arrays_h;
     unsigned int *post_trial_chem_amounts;
 
     //allocates components of the chem array for chem amounts and threshhold information
-    chem_arrays_h.chem_amounts   = (unsigned int*)malloc(num_chems * sizeof(unsigned int));
-    chem_arrays_h.thresh_amounts = (unsigned int*)malloc(num_chems * sizeof(unsigned int));
-    chem_arrays_h.thresh_types   = (threshold_types*)malloc(num_chems * sizeof(threshold_types));
+    crn_h.chem_arrays.chem_amounts   = (unsigned int*)malloc(crn_h.num_chems * sizeof(unsigned int));
+    crn_h.chem_arrays.thresh_amounts = (unsigned int*)malloc(crn_h.num_chems * sizeof(unsigned int));
+    crn_h.chem_arrays.thresh_types   = (threshold_types*)malloc(crn_h.num_chems * sizeof(threshold_types));
 
-    post_trial_chem_amounts      = (unsigned int*)malloc(num_chems * sizeof(unsigned int));
+    post_trial_chem_amounts      = (unsigned int*)malloc(crn_h.num_chems * sizeof(unsigned int));
 
-    if (num_chems != crn.thresholds.size()) {
+    if (crn_h.num_chems != crn.thresholds.size()) {
         std::cerr << "Insufficient amount of thresholds detected. Check " << argv[1] << " for any missing thresholds." << std::endl;
         return -1;
     }
 
-    for (unsigned i = 0; i < num_chems; i++) {
-        chem_arrays_h.chem_amounts[i]   = crn.chems[i].amount;
-        chem_arrays_h.thresh_amounts[i] = crn.thresholds[i].amount;
-        chem_arrays_h.thresh_types[i]   = crn.thresholds[i].type;
+    for (unsigned i = 0; i < crn_h.num_chems; i++) {
+        crn_h.chem_arrays.chem_amounts[i]   = crn.chems[i].amount;
+        crn_h.chem_arrays.thresh_amounts[i] = crn.thresholds[i].amount;
+        crn_h.chem_arrays.thresh_types[i]   = crn.thresholds[i].type;
     }
 
     //allocates memory based on the total number of rections to have a collection of all the rates
-    float* rates_h = (float*)malloc(num_reactions * sizeof(float));
-    for (unsigned i = 0; i < num_reactions; i++)
-        rates_h[i] = static_cast<float>(crn.reactions[i]->rate);
+    crn_h.rates = (float*)malloc(crn_h.num_reactions * sizeof(float));
+    for (unsigned i = 0; i < crn_h.num_reactions; i++)
+        crn_h.rates[i] = static_cast<float>(crn.reactions[i]->rate);
 
     std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(4);
     if (print_crn_contents(crn)) {
@@ -253,15 +253,15 @@ int main (int argc, char *argv[]) {
 
     std::vector<double> avg_post_trial_chem_amounts;
     std::vector<unsigned int> total_triggered_threshs;
-    avg_post_trial_chem_amounts.resize(num_chems);
-    total_triggered_threshs.resize(num_chems);
+    avg_post_trial_chem_amounts.resize(crn_h.num_chems);
+    total_triggered_threshs.resize(crn_h.num_chems);
     chem_id_t triggered_thresh = UINT32_MAX;
 
     std::vector<std::unordered_map<unsigned int, int>> z;
     std::vector<std::unordered_map<unsigned int, double>> Prob;
 
-    z.resize(num_chems);
-    Prob.resize(num_chems);
+    z.resize(crn_h.num_chems);
+    Prob.resize(crn_h.num_chems);
 
     int err = 0;
     output_stats_t trial_stats;
@@ -276,9 +276,7 @@ int main (int argc, char *argv[]) {
         out_stats.time_elapsed = 0;
 
         const auto start_trial = std::chrono::high_resolution_clock::now();
-        simulation_master(post_trial_chem_amounts, chem_arrays_h, reactants_h, products_h, rates_h,
-                                            num_chems, num_reactions, total_reactants, total_products,
-                                            sim_params, &out_stats, num_steps, &triggered_thresh, &within_threshold, i, &err);
+        simulation_master(post_trial_chem_amounts, crn_h, sim_params, &out_stats, &triggered_thresh, &within_threshold, i, &err);
 
         if (err) {
             return -1;
@@ -287,13 +285,13 @@ int main (int argc, char *argv[]) {
         trial_stats.steps_elapsed += out_stats.steps_elapsed;
         trial_stats.time_elapsed += out_stats.time_elapsed;
 
-        for (int j = 0; j < num_chems; j++) {
+        for (int j = 0; j < crn_h.num_chems; j++) {
             avg_post_trial_chem_amounts[j] += (double) post_trial_chem_amounts[j] / (double) num_trials;
             if (!z[j].count(post_trial_chem_amounts[j])) z[j][post_trial_chem_amounts[j]] = 0;
             z[j][post_trial_chem_amounts[j]]++;
         }
 
-        for (unsigned i = 0; i < num_chems && !within_threshold; ++i) {
+        for (unsigned i = 0; i < crn_h.num_chems && !within_threshold; ++i) {
             switch(crn.thresholds[i].type) {
                 case THRESH_LT:
                     if (post_trial_chem_amounts[i] < crn.thresholds[i].amount) {
@@ -329,18 +327,18 @@ int main (int argc, char *argv[]) {
                     std::cerr << "Error: invalid threshold code " << within_threshold << std::endl;
 
                     free(post_trial_chem_amounts);
-                    free(chem_arrays_h.chem_amounts);
-                    free(chem_arrays_h.thresh_amounts);
-                    free(chem_arrays_h.thresh_types);
-                    free(reactants_h.chem_ids);
-                    free(reactants_h.deltas);
-                    free(reactants_h.start_bounds);
-                    free(reactants_h.end_bounds);
-                    free(products_h.chem_ids);
-                    free(products_h.deltas);
-                    free(products_h.start_bounds);
-                    free(products_h.end_bounds);
-                    free(rates_h);
+                    free(crn_h.chem_arrays.chem_amounts);
+                    free(crn_h.chem_arrays.thresh_amounts);
+                    free(crn_h.chem_arrays.thresh_types);
+                    free(crn_h.reactants.chem_ids);
+                    free(crn_h.reactants.deltas);
+                    free(crn_h.reactants.start_bounds);
+                    free(crn_h.reactants.end_bounds);
+                    free(crn_h.products.chem_ids);
+                    free(crn_h.products.deltas);
+                    free(crn_h.products.start_bounds);
+                    free(crn_h.products.end_bounds);
+                    free(crn_h.rates);
 
                     return -1;
                 }
@@ -349,22 +347,22 @@ int main (int argc, char *argv[]) {
         if (sim_params.verbosity_bit_fields & PRINT_TRIALS) {
             std::cout << "\nTrial stats:\n";
 
-            if (!within_threshold && triggered_thresh >= num_chems) {
+            if (!within_threshold && triggered_thresh >= crn_h.num_chems) {
                 std::cerr << "Error: Invalid threshold found" << std::endl;
 
                 free(post_trial_chem_amounts);
-                free(chem_arrays_h.chem_amounts);
-                free(chem_arrays_h.thresh_amounts);
-                free(chem_arrays_h.thresh_types);
-                free(reactants_h.chem_ids);
-                free(reactants_h.deltas);
-                free(reactants_h.start_bounds);
-                free(reactants_h.end_bounds);
-                free(products_h.chem_ids);
-                free(products_h.deltas);
-                free(products_h.start_bounds);
-                free(products_h.end_bounds);
-                free(rates_h);
+                free(crn_h.chem_arrays.chem_amounts);
+                free(crn_h.chem_arrays.thresh_amounts);
+                free(crn_h.chem_arrays.thresh_types);
+                free(crn_h.reactants.chem_ids);
+                free(crn_h.reactants.deltas);
+                free(crn_h.reactants.start_bounds);
+                free(crn_h.reactants.end_bounds);
+                free(crn_h.products.chem_ids);
+                free(crn_h.products.deltas);
+                free(crn_h.products.start_bounds);
+                free(crn_h.products.end_bounds);
+                free(crn_h.rates);
 
                 return -1;
             }
@@ -387,13 +385,13 @@ int main (int argc, char *argv[]) {
     std::vector<double> var;
     std::vector<double> count;
 
-    sum.resize(num_chems);
-    diff.resize(num_chems);
-    var.resize(num_chems);
-    count.resize(num_chems);
+    sum.resize(crn_h.num_chems);
+    diff.resize(crn_h.num_chems);
+    var.resize(crn_h.num_chems);
+    count.resize(crn_h.num_chems);
 
     // Compute probabilities
-	for(unsigned int i = 0; i < num_chems; ++i) {
+	for(unsigned int i = 0; i < crn_h.num_chems; ++i) {
         for (const std::pair<unsigned int, int> z_col : z[i]) {
             Prob[i][z_col.first] = z_col.second / (double) num_trials;
 
@@ -407,11 +405,11 @@ int main (int argc, char *argv[]) {
         }
 	}
 
-    for(int i = 0; i < num_chems; ++i) {
+    for(int i = 0; i < crn_h.num_chems; ++i) {
 		std::cout<< " Mean of probability distribution of " << crn.chems[i].name << " = "<< sum[i] << "\n";
 	}
 
-	for(int i = 0; i < num_chems; ++i) {
+	for(int i = 0; i < crn_h.num_chems; ++i) {
         for (const std::pair<unsigned int, double> d_col : Prob[i]) {
             diff[i][d_col.first] = (d_col.first - sum[i]) * (d_col.first - sum[i]);
             diff[i][d_col.first] *= Prob[i][d_col.first];
@@ -419,7 +417,7 @@ int main (int argc, char *argv[]) {
         }
 	}
 
-	for(int i = 0; i < num_chems; ++i) {
+	for(int i = 0; i < crn_h.num_chems; ++i) {
 		std::cout << " Variance of probability distribution of "<< crn.chems[i].name << " = "<< var[i] << "\n";
 	}
 
@@ -435,7 +433,7 @@ int main (int argc, char *argv[]) {
     }
     std::cout << "]" << std::endl;
 
-    for (unsigned i = 0; i < num_chems; i++) {
+    for (unsigned i = 0; i < crn_h.num_chems; i++) {
         if (crn.thresholds[i].type == THRESH_N) {
             continue;
         } else {
@@ -460,18 +458,18 @@ int main (int argc, char *argv[]) {
                 std::cerr << "Error: invalid threshold code" << std::endl;
 
                 free(post_trial_chem_amounts);
-                free(chem_arrays_h.chem_amounts);
-                free(chem_arrays_h.thresh_amounts);
-                free(chem_arrays_h.thresh_types);
-                free(reactants_h.chem_ids);
-                free(reactants_h.deltas);
-                free(reactants_h.start_bounds);
-                free(reactants_h.end_bounds);
-                free(products_h.chem_ids);
-                free(products_h.deltas);
-                free(products_h.start_bounds);
-                free(products_h.end_bounds);
-                free(rates_h);
+                free(crn_h.chem_arrays.chem_amounts);
+                free(crn_h.chem_arrays.thresh_amounts);
+                free(crn_h.chem_arrays.thresh_types);
+                free(crn_h.reactants.chem_ids);
+                free(crn_h.reactants.deltas);
+                free(crn_h.reactants.start_bounds);
+                free(crn_h.reactants.end_bounds);
+                free(crn_h.products.chem_ids);
+                free(crn_h.products.deltas);
+                free(crn_h.products.start_bounds);
+                free(crn_h.products.end_bounds);
+                free(crn_h.rates);
 
                 return 1;
             }
@@ -490,18 +488,18 @@ int main (int argc, char *argv[]) {
 
     //frees at the end and deletes
     free(post_trial_chem_amounts);
-    free(chem_arrays_h.chem_amounts);
-    free(chem_arrays_h.thresh_amounts);
-    free(chem_arrays_h.thresh_types);
-    free(reactants_h.chem_ids);
-    free(reactants_h.deltas);
-    free(reactants_h.start_bounds);
-    free(reactants_h.end_bounds);
-    free(products_h.chem_ids);
-    free(products_h.deltas);
-    free(products_h.start_bounds);
-    free(products_h.end_bounds);
-    free(rates_h);
+    free(crn_h.chem_arrays.chem_amounts);
+    free(crn_h.chem_arrays.thresh_amounts);
+    free(crn_h.chem_arrays.thresh_types);
+    free(crn_h.reactants.chem_ids);
+    free(crn_h.reactants.deltas);
+    free(crn_h.reactants.start_bounds);
+    free(crn_h.reactants.end_bounds);
+    free(crn_h.products.chem_ids);
+    free(crn_h.products.deltas);
+    free(crn_h.products.start_bounds);
+    free(crn_h.products.end_bounds);
+    free(crn_h.rates);
 
     return 0;
 }
