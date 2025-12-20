@@ -368,7 +368,7 @@ int main (int argc, char *argv[]) {
         if (sim_params.verbosity_bit_fields & PRINT_TRIALS) {
             // std::cout << "Trial " << i << "\n";
 
-            for (int j = 0; j < crn_h.num_chems; ++j)
+            for (int j = 0; j < crn_h.num_chems; ++j) {
                 if (print_threshold(crn.chems[j].name, post_trial_chem_amounts[j], crn.thresholds[j].type, crn.thresholds[j].amount)) {
                     std::cerr << "Error: invalid threshold code " << within_threshold << std::endl;
 
@@ -388,6 +388,7 @@ int main (int argc, char *argv[]) {
 
                     return -1;
                 }
+            }
 
             if (!within_threshold && triggered_thresh >= crn_h.num_chems) {
                 std::cerr << "Error: Invalid threshold found" << std::endl;
