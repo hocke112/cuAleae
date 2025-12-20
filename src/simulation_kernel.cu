@@ -519,6 +519,8 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
         cudaMemcpy(&propensity_sum, &propensity_inclusive_sums[num_reactions - 1], sizeof(float), cudaMemcpyDeviceToHost);
 
         if (propensity_sum <= 0.0f) {
+            if (sim_params.verbosity_bit_fields & PRINT_STATES)
+                cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
             if (sim_params.verbosity_bit_fields & PRINT_TERMINAL) {
                 printf("No further reactions are possible\n");
             }
