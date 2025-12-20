@@ -257,21 +257,11 @@ int main (int argc, char *argv[]) {
     total_triggered_threshs.resize(num_chems);
     chem_id_t triggered_thresh = UINT32_MAX;
 
-
     std::vector<std::unordered_map<unsigned int, int>> z;
     std::vector<std::unordered_map<unsigned int, double>> Prob;
 
-    // std::vector<std::vector<int>> z;
-    // std::vector<std::vector<double>> Prob;
-
     z.resize(num_chems);
-    // for (unsigned int i = 0; i < num_chems; ++i) {
-    //     z[i].resize(1000);
-    // }
     Prob.resize(num_chems);
-    // for (unsigned int i = 0; i < num_chems; ++i) {
-    //     Prob[i].resize(1000);
-    // }
 
     int err = 0;
     output_stats_t trial_stats;
@@ -337,6 +327,8 @@ int main (int argc, char *argv[]) {
                     break;
                 default:
                     std::cerr << "Error: invalid threshold code " << within_threshold << std::endl;
+
+                    free(post_trial_chem_amounts);
                     free(chem_arrays_h.chem_amounts);
                     free(chem_arrays_h.thresh_amounts);
                     free(chem_arrays_h.thresh_types);
@@ -349,6 +341,7 @@ int main (int argc, char *argv[]) {
                     free(products_h.start_bounds);
                     free(products_h.end_bounds);
                     free(rates_h);
+
                     return -1;
                 }
         }
@@ -358,6 +351,8 @@ int main (int argc, char *argv[]) {
 
             if (!within_threshold && triggered_thresh >= num_chems) {
                 std::cerr << "Error: Invalid threshold found" << std::endl;
+
+                free(post_trial_chem_amounts);
                 free(chem_arrays_h.chem_amounts);
                 free(chem_arrays_h.thresh_amounts);
                 free(chem_arrays_h.thresh_types);
@@ -370,6 +365,7 @@ int main (int argc, char *argv[]) {
                 free(products_h.start_bounds);
                 free(products_h.end_bounds);
                 free(rates_h);
+
                 return -1;
             }
 
@@ -388,15 +384,11 @@ int main (int argc, char *argv[]) {
 
     std::vector<double> sum;
     std::vector<std::unordered_map<unsigned int, double>> diff;
-    // std::vector<std::vector<double>> diff;
     std::vector<double> var;
     std::vector<double> count;
 
     sum.resize(num_chems);
     diff.resize(num_chems);
-    // for (unsigned int i = 0; i < num_chems; ++i) {
-    //     diff[i].resize(1000);
-    // }
     var.resize(num_chems);
     count.resize(num_chems);
 
@@ -413,16 +405,6 @@ int main (int argc, char *argv[]) {
                 std::cout << " Probability of (" << crn.chems[i].name << " = "<< z_col.first << ") = "<< Prob[i][z_col.first] << "\n";
             }
         }
-		// for(unsigned int j = 0; j<1000; ++j) {
-		// 	Prob[i][j] = z[i][j] / (double) num_trials;
-		// 	if(z[i][j] != 0) {
-		// 		sum[i]+=j*Prob[i][j];
-		// 		count[i]+=1;
-		// 	}
-		// 	if (Prob[i][j] != 0) {
-		// 		std::cout <<" Probability of ("<< crn.chems[i].name << " = "<< j << ") = "<< Prob[i][j] << "\n";
-		// 	}
-		// }
 	}
 
     for(int i = 0; i < num_chems; ++i) {
@@ -435,11 +417,6 @@ int main (int argc, char *argv[]) {
             diff[i][d_col.first] *= Prob[i][d_col.first];
             var[i] += diff[i][d_col.first];
         }
-		// for(int j=0;j<1000;++j) {
-		// 	diff[i][j]=(j-sum[i]) * (j-sum[i]);
-		// 	diff[i][j]=diff[i][j] * Prob[i][j];
-		// 	var[i]=var[i]+diff[i][j];
-		// }
 	}
 
 	for(int i = 0; i < num_chems; ++i) {
@@ -481,6 +458,8 @@ int main (int argc, char *argv[]) {
                 break;
             default:
                 std::cerr << "Error: invalid threshold code" << std::endl;
+
+                free(post_trial_chem_amounts);
                 free(chem_arrays_h.chem_amounts);
                 free(chem_arrays_h.thresh_amounts);
                 free(chem_arrays_h.thresh_types);
@@ -493,6 +472,7 @@ int main (int argc, char *argv[]) {
                 free(products_h.start_bounds);
                 free(products_h.end_bounds);
                 free(rates_h);
+
                 return 1;
             }
         std::cout << crn.thresholds[i].amount << ": " << total_triggered_threshs[i] << " (";
@@ -509,6 +489,7 @@ int main (int argc, char *argv[]) {
     std::cout << "total runtime      " << trial_duration.count() << " s\n";
 
     //frees at the end and deletes
+    free(post_trial_chem_amounts);
     free(chem_arrays_h.chem_amounts);
     free(chem_arrays_h.thresh_amounts);
     free(chem_arrays_h.thresh_types);
