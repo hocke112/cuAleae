@@ -1,6 +1,6 @@
 STD_VERSION = -std=c++17
 INC_FLAGS = -Iinc
-NVCC_INC_FLAGS = -gencode=arch=compute_70,code=\"sm_70\"
+NVCC_INC_FLAGS = -gencode=arch=compute_80,code=\"sm_80\"
 LD_FLAGS = -lcudart -L/usr/local/cuda/lib64
 CPP_HEADER_FILES = inc/misc_def.h inc/host_data_structures.hpp inc/device_data_structures.h inc/file_parsing.hpp inc/simulation.h
 CPP_SOURCE_FILES = src/main.cpp src/file_parsing.cpp
