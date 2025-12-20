@@ -1,5 +1,7 @@
 STD_VERSION = -std=c++17
 INC_FLAGS = -Iinc
+
+# Edit these flags and add sm version compatible with your nVidia GPU
 NVCC_INC_FLAGS = -arch=sm_75 \
 		-gencode=arch=compute_75,code=sm_75 \
 		-gencode=arch=compute_80,code=sm_80 \
