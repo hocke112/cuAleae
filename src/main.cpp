@@ -61,6 +61,37 @@ int print_crn_contents(const CRN &crn) {
     return 0;
 }
 
+int print_threshold(const std::string &chem_name, const unsigned int chem_amount, threshold_types thresh_type, unsigned int thresh_amount) {
+    switch(thresh_type) {
+        case THRESH_LT:
+            if (chem_amount < thresh_amount) {
+                std::cout << chem_name << " < " << thresh_amount << "\n";
+            }
+            break;
+        case THRESH_LE:
+            if (chem_amount <= thresh_amount) {
+                std::cout << chem_name << " <= " << thresh_amount << "\n";
+            }
+        break;
+        case THRESH_GE:
+            if (chem_amount >= thresh_amount) {
+                std::cout << chem_name << " >= " << thresh_amount << "\n";
+            }
+            break;
+        case THRESH_GT:
+            if (chem_amount > thresh_amount) {
+                std::cout << chem_name << " > " << thresh_amount << "\n";
+            }
+            break;
+        case THRESH_N:
+            break;
+        default:
+            return 1;
+        }
+
+    return 0;
+}
+
 int main (int argc, char *argv[]) {
     if (argc != 7) {
         std::cerr << "Missing arguments." << std::endl;
@@ -148,8 +179,8 @@ int main (int argc, char *argv[]) {
     sim_params.max_time = num_time;
     sim_params.max_steps = num_steps;
 
+    // Declare crn copy used for simulation
     crn_t crn_h;
-
 
     //total number of chemicals in network
     crn_h.num_chems = crn.chems.size();
@@ -268,10 +299,8 @@ int main (int argc, char *argv[]) {
     bool within_threshold = true;
     for(int i = 0; i < num_trials; ++i){
         //Calls the simulation master for the given trial i
-        if (sim_params.verbosity_bit_fields & PRINT_TRIALS) {
+        if (sim_params.verbosity_bit_fields & PRINT_TRIALS)
             std::cout << "Trial " << i << "\n";
-        }
-
         out_stats.steps_elapsed = 0;
         out_stats.time_elapsed = 0;
 
@@ -295,29 +324,21 @@ int main (int argc, char *argv[]) {
             switch(crn.thresholds[i].type) {
                 case THRESH_LT:
                     if (post_trial_chem_amounts[i] < crn.thresholds[i].amount) {
-                        if (sim_params.verbosity_bit_fields & PRINT_TRIALS)
-                            std::cout << crn.chems[i].name << " < " << crn.thresholds[i].amount << "\n";
                         total_triggered_threshs[i]++;
                     }
                     break;
                 case THRESH_LE:
                     if (post_trial_chem_amounts[i] <= crn.thresholds[i].amount) {
-                        if (sim_params.verbosity_bit_fields & PRINT_TRIALS)
-                            std::cout << crn.chems[i].name << " <= " << crn.thresholds[i].amount << "\n";
                         total_triggered_threshs[i]++;
                     }
                 break;
                 case THRESH_GE:
                     if (post_trial_chem_amounts[i] >= crn.thresholds[i].amount) {
-                        if (sim_params.verbosity_bit_fields & PRINT_TRIALS)
-                            std::cout << crn.chems[i].name << " >= " << crn.thresholds[i].amount << "\n";
                         total_triggered_threshs[i]++;
                     }
                     break;
                 case THRESH_GT:
                     if (post_trial_chem_amounts[i] > crn.thresholds[i].amount) {
-                        if (sim_params.verbosity_bit_fields & PRINT_TRIALS)
-                            std::cout << crn.chems[i].name << " > " << crn.thresholds[i].amount << "\n";
                         total_triggered_threshs[i]++;
                     }
                     break;
@@ -341,11 +362,34 @@ int main (int argc, char *argv[]) {
                     free(crn_h.rates);
 
                     return -1;
-                }
+            }
         }
 
+        const auto end_trial = std::chrono::high_resolution_clock::now();
+
         if (sim_params.verbosity_bit_fields & PRINT_TRIALS) {
-            std::cout << "\nTrial stats:\n";
+            // std::cout << "Trial " << i << "\n";
+
+            for (int j = 0; j < crn_h.num_chems; ++j)
+                if (print_threshold(crn.chems[j].name, post_trial_chem_amounts[j], crn.thresholds[j].type, crn.thresholds[j].amount)) {
+                    std::cerr << "Error: invalid threshold code " << within_threshold << std::endl;
+
+                    free(post_trial_chem_amounts);
+                    free(crn_h.chem_arrays.chem_amounts);
+                    free(crn_h.chem_arrays.thresh_amounts);
+                    free(crn_h.chem_arrays.thresh_types);
+                    free(crn_h.reactants.chem_ids);
+                    free(crn_h.reactants.deltas);
+                    free(crn_h.reactants.start_bounds);
+                    free(crn_h.reactants.end_bounds);
+                    free(crn_h.products.chem_ids);
+                    free(crn_h.products.deltas);
+                    free(crn_h.products.start_bounds);
+                    free(crn_h.products.end_bounds);
+                    free(crn_h.rates);
+
+                    return -1;
+                }
 
             if (!within_threshold && triggered_thresh >= crn_h.num_chems) {
                 std::cerr << "Error: Invalid threshold found" << std::endl;
@@ -367,12 +411,12 @@ int main (int argc, char *argv[]) {
                 return -1;
             }
 
+            std::cout << "\nTrial stats:\n";
             std::cout << "Events  " << out_stats.steps_elapsed << "\n";
             if (sim_params.max_time >= 0) {
                std::cout << "Time    " << out_stats.time_elapsed  << "\n";
             }
 
-            const auto end_trial = std::chrono::high_resolution_clock::now();
             const std::chrono::duration<double, std::ratio<1,1>> trial_duration = end_trial - start_trial;
 
             std::cout << "Runtime " << trial_duration.count() << " s\n";
