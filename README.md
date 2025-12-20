@@ -32,10 +32,11 @@ The first two are the input files to cuAleae, while the rest are explained below
 * Windows 10/11
 * Linux
 ### Hardware
-* An nVidia GPU that supports CUDA 9.0 or higher (Makefile can be tweaked to support lower versions like CUDA 8.0)
+* An nVidia GPU that supports CUDA 10.0 or higher (Makefile can be tweaked to support lower versions like CUDA 8.0)
 ### Toolchain
 * A C++ compiler that can support C++17 or higher
-* A CUDA C Compiler that can support sm_70 or higher (CUDA 9.0 or higher)
+* A CUDA C Compiler that can support sm_75 or higher (CUDA 10.0 or higher)
+    * Note: you can edit the flags for nvcc under NVCC_INC_FLAGS to compile for your configuration
 
 ## Compilation
 To compile the source code, simply type `make build` to compile. Alternatively, you can type `make debug` for compile for debugging.
