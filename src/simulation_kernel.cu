@@ -420,34 +420,32 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
  *
  * @params: Way too many to list. Just look at the function.
 */
-extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_arr_t chem_arrays_h, field_t reactants_h, field_t products_h,
-                                        float *rates_h, unsigned int num_chems, unsigned int num_reactions,
-                                        unsigned int num_reactants, unsigned int num_products,
+extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, crn_t crn_h,
                                         sim_params_t sim_params, output_stats_t *out_stats,
-                                        unsigned int max_steps, unsigned int *triggered_thresh, bool *within_threshold,
+                                        unsigned int *triggered_thresh, bool *within_threshold,
                                         unsigned int trial_num, int *err) {
     chem_arr_t chem_arrays_d;
     field_t reactants_d;
     field_t products_d;
     float *rates_d;
 
-    cudaMalloc((void**)&chem_arrays_d.chem_amounts, num_chems * sizeof(unsigned int));          // Allocate all device memory needed for simulation.
-    cudaMalloc((void**)&chem_arrays_d.thresh_amounts, num_chems * sizeof(unsigned int));
-    cudaMalloc((void**)&chem_arrays_d.thresh_types, num_chems * sizeof(threshold_types));
+    cudaMalloc((void**)&chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int));          // Allocate all device memory needed for simulation.
+    cudaMalloc((void**)&chem_arrays_d.thresh_amounts, crn_h.num_chems * sizeof(unsigned int));
+    cudaMalloc((void**)&chem_arrays_d.thresh_types, crn_h.num_chems * sizeof(threshold_types));
 
-    cudaMalloc((void**)&reactants_d.chem_ids, num_reactants * sizeof(chem_id_t));
-    cudaMalloc((void**)&reactants_d.deltas, num_reactants * sizeof(unsigned int));
-    cudaMalloc((void**)&reactants_d.start_bounds, num_reactions * sizeof(unsigned int));
-    cudaMalloc((void**)&reactants_d.end_bounds, num_reactions * sizeof(unsigned int));
+    cudaMalloc((void**)&reactants_d.chem_ids, crn_h.num_reactants * sizeof(chem_id_t));
+    cudaMalloc((void**)&reactants_d.deltas, crn_h.num_reactants * sizeof(unsigned int));
+    cudaMalloc((void**)&reactants_d.start_bounds, crn_h.num_reactions * sizeof(unsigned int));
+    cudaMalloc((void**)&reactants_d.end_bounds, crn_h.num_reactions * sizeof(unsigned int));
 
-    cudaMalloc((void**)&products_d.chem_ids, num_products * sizeof(chem_id_t));
-    cudaMalloc((void**)&products_d.deltas, num_products * sizeof(unsigned int));
-    cudaMalloc((void**)&products_d.start_bounds, num_reactions * sizeof(unsigned int));
-    cudaMalloc((void**)&products_d.end_bounds, num_reactions * sizeof(unsigned int));
+    cudaMalloc((void**)&products_d.chem_ids, crn_h.num_products * sizeof(chem_id_t));
+    cudaMalloc((void**)&products_d.deltas, crn_h.num_products * sizeof(unsigned int));
+    cudaMalloc((void**)&products_d.start_bounds, crn_h.num_reactions * sizeof(unsigned int));
+    cudaMalloc((void**)&products_d.end_bounds, crn_h.num_reactions * sizeof(unsigned int));
 
-    cudaMalloc((void**)&rates_d, num_reactions * sizeof(float));
+    cudaMalloc((void**)&rates_d, crn_h.num_reactions * sizeof(float));
 
-    size_t padded_num_reactions = TILE_SIZE*((num_reactions+TILE_SIZE-1)/TILE_SIZE);
+    size_t padded_num_reactions = TILE_SIZE*((crn_h.num_reactions+TILE_SIZE-1)/TILE_SIZE);
 
     float *propensities;
     float *propensity_inclusive_sums;
@@ -455,9 +453,9 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
 
     cudaMalloc((void**)&propensities, padded_num_reactions*sizeof(float));
     cudaMalloc((void**)&propensity_inclusive_sums, padded_num_reactions*sizeof(float));
-    cudaMalloc((void**)&propensity_block_sums, num_reactions*sizeof(float));
+    cudaMalloc((void**)&propensity_block_sums, crn_h.num_reactions*sizeof(float));
 
-    float *propensity_h = (float*) malloc(num_reactions * sizeof(float));
+    float *propensity_h = (float*) malloc(crn_h.num_reactions * sizeof(float));
 
     unsigned int *chosen_reaction_d;
     cudaMalloc((void**)&chosen_reaction_d, sizeof(unsigned int));
@@ -476,25 +474,25 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
     cudaStreamCreate(&rates_stream);
     cudaStreamCreate(&sim_stream);
 
-    cudaMemcpyAsync(chem_arrays_d.chem_amounts, chem_arrays_h.chem_amounts, num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, chem_arr_stream);
-    cudaMemcpyAsync(chem_arrays_d.thresh_amounts, chem_arrays_h.thresh_amounts, num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, chem_arr_stream);
-    cudaMemcpyAsync(chem_arrays_d.thresh_types, chem_arrays_h.thresh_types, num_chems * sizeof(threshold_types), cudaMemcpyHostToDevice, chem_arr_stream);
+    cudaMemcpyAsync(chem_arrays_d.chem_amounts, crn_h.chem_arrays.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, chem_arr_stream);
+    cudaMemcpyAsync(chem_arrays_d.thresh_amounts, crn_h.chem_arrays.thresh_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, chem_arr_stream);
+    cudaMemcpyAsync(chem_arrays_d.thresh_types, crn_h.chem_arrays.thresh_types, crn_h.num_chems * sizeof(threshold_types), cudaMemcpyHostToDevice, chem_arr_stream);
 
-    cudaMemcpyAsync(reactants_d.chem_ids, reactants_h.chem_ids, num_reactants * sizeof(chem_id_t), cudaMemcpyHostToDevice, reactants_stream);
-    cudaMemcpyAsync(reactants_d.deltas, reactants_h.deltas, num_reactants * sizeof(unsigned int), cudaMemcpyHostToDevice, reactants_stream);
-    cudaMemcpyAsync(reactants_d.start_bounds, reactants_h.start_bounds, num_reactions * sizeof(unsigned int), cudaMemcpyHostToDevice, reactants_stream);
-    cudaMemcpyAsync(reactants_d.end_bounds, reactants_h.end_bounds, num_reactions * sizeof(unsigned int), cudaMemcpyHostToDevice, reactants_stream);
+    cudaMemcpyAsync(reactants_d.chem_ids, crn_h.reactants.chem_ids, crn_h.num_reactants * sizeof(chem_id_t), cudaMemcpyHostToDevice, reactants_stream);
+    cudaMemcpyAsync(reactants_d.deltas, crn_h.reactants.deltas, crn_h.num_reactants * sizeof(unsigned int), cudaMemcpyHostToDevice, reactants_stream);
+    cudaMemcpyAsync(reactants_d.start_bounds, crn_h.reactants.start_bounds, crn_h.num_reactions * sizeof(unsigned int), cudaMemcpyHostToDevice, reactants_stream);
+    cudaMemcpyAsync(reactants_d.end_bounds, crn_h.reactants.end_bounds, crn_h.num_reactions * sizeof(unsigned int), cudaMemcpyHostToDevice, reactants_stream);
 
-    cudaMemcpyAsync(products_d.chem_ids, products_h.chem_ids, num_products * sizeof(chem_id_t), cudaMemcpyHostToDevice, products_stream);
-    cudaMemcpyAsync(products_d.deltas, products_h.deltas, num_products * sizeof(unsigned int), cudaMemcpyHostToDevice, products_stream);
-    cudaMemcpyAsync(products_d.start_bounds, products_h.start_bounds, num_reactions * sizeof(unsigned int), cudaMemcpyHostToDevice, products_stream);
-    cudaMemcpyAsync(products_d.end_bounds, products_h.end_bounds, num_reactions * sizeof(unsigned int), cudaMemcpyHostToDevice, products_stream);
+    cudaMemcpyAsync(products_d.chem_ids, crn_h.products.chem_ids, crn_h.num_products * sizeof(chem_id_t), cudaMemcpyHostToDevice, products_stream);
+    cudaMemcpyAsync(products_d.deltas, crn_h.products.deltas, crn_h.num_products * sizeof(unsigned int), cudaMemcpyHostToDevice, products_stream);
+    cudaMemcpyAsync(products_d.start_bounds, crn_h.products.start_bounds, crn_h.num_reactions * sizeof(unsigned int), cudaMemcpyHostToDevice, products_stream);
+    cudaMemcpyAsync(products_d.end_bounds, crn_h.products.end_bounds, crn_h.num_reactions * sizeof(unsigned int), cudaMemcpyHostToDevice, products_stream);
 
-    cudaMemcpyAsync(rates_d, rates_h, num_reactions * sizeof(float), cudaMemcpyHostToDevice, rates_stream);
+    cudaMemcpyAsync(rates_d, crn_h.rates, crn_h.num_reactions * sizeof(float), cudaMemcpyHostToDevice, rates_stream);
 
     cudaMemsetAsync(propensities, 0.0, padded_num_reactions * sizeof(float), sim_stream);
     cudaMemsetAsync(propensity_inclusive_sums, 0.0, padded_num_reactions * sizeof(float), sim_stream);
-    cudaMemsetAsync(propensity_block_sums, 0.0, num_reactions * sizeof(float), sim_stream);
+    cudaMemsetAsync(propensity_block_sums, 0.0, crn_h.num_reactions * sizeof(float), sim_stream);
 
     cudaMemsetAsync(triggered_thresh_d, UINT_MAX, sizeof(unsigned int), sim_stream);
 
@@ -502,36 +500,36 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
 
     if (trial_num <= 0) srand(time(NULL));
 
-    while (*within_threshold && (sim_params.max_time <= 0 || out_stats->time_elapsed < sim_params.max_time) && (max_steps <= 0 || out_stats->steps_elapsed < max_steps)) {
-        unsigned int num_blocks = (unsigned int) ceil((float) num_reactions/(2*BLOCK_SIZE));
+    while (*within_threshold && (sim_params.max_time <= 0 || out_stats->time_elapsed < sim_params.max_time) && (sim_params.max_steps <= 0 || out_stats->steps_elapsed < sim_params.max_steps)) {
+        unsigned int num_blocks = (unsigned int) ceil((float) crn_h.num_reactions/(2*BLOCK_SIZE));
 
         // Find propensity of each reaction
         dim3 dimGrid = dim3(num_blocks, 1, 1);
         dim3 dimBlock = dim3(2*BLOCK_SIZE, 1, 1);
-        calculate_propensity_kernel<<<dimGrid, dimBlock>>>(propensities, chem_arrays_d, reactants_d, rates_d, num_reactions);
+        calculate_propensity_kernel<<<dimGrid, dimBlock>>>(propensities, chem_arrays_d, reactants_d, rates_d, crn_h.num_reactions);
 
         // Find propensity inclusive prefix sums
         cudaMemset(propensity_inclusive_sums, 0.0, padded_num_reactions * sizeof(float));
-        cudaMemset(propensity_block_sums, 0.0, num_reactions * sizeof(float));
+        cudaMemset(propensity_block_sums, 0.0, crn_h.num_reactions * sizeof(float));
         prescanArray(propensity_inclusive_sums, propensities, propensity_block_sums, padded_num_reactions);
 
         float propensity_sum = FLT_MAX;
-        cudaMemcpy(&propensity_sum, &propensity_inclusive_sums[num_reactions - 1], sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&propensity_sum, &propensity_inclusive_sums[crn_h.num_reactions - 1], sizeof(float), cudaMemcpyDeviceToHost);
 
         if (propensity_sum <= 0.0f) {
             if (sim_params.verbosity_bit_fields & PRINT_STATES)
-                cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+                cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
             if (sim_params.verbosity_bit_fields & PRINT_TERMINAL) {
                 printf("No further reactions are possible\n");
             }
             break;
         } else if (sim_params.verbosity_bit_fields & PRINT_TRACE) {
-            cudaMemcpy(propensity_h, propensities, sizeof(float) * num_reactions, cudaMemcpyDeviceToHost);
+            cudaMemcpy(propensity_h, propensities, sizeof(float) * crn_h.num_reactions, cudaMemcpyDeviceToHost);
 
             printf("Prob [");
-            for (unsigned j = 0; j < num_reactions; j++) {
+            for (unsigned j = 0; j < crn_h.num_reactions; j++) {
                 printf("%.4f", propensity_h[j] / propensity_sum);
-                if (j < num_reactions - 1)
+                if (j < crn_h.num_reactions - 1)
                     printf(", ");
             }
             printf("]\n");
@@ -542,10 +540,10 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
 
         // Choose a reaction
         cudaMemset(chosen_reaction_d, UINT_MAX, sizeof(unsigned int));
-        choose_reaction_kernel<<<dimGrid, dimBlock>>>(chosen_reaction_d, propensity_inclusive_sums, propensity_sum, r, num_reactions);
+        choose_reaction_kernel<<<dimGrid, dimBlock>>>(chosen_reaction_d, propensity_inclusive_sums, propensity_sum, r, crn_h.num_reactions);
         cudaMemcpy(&chosen_reaction, chosen_reaction_d, sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
-        if (chosen_reaction >= num_reactions) {
+        if (chosen_reaction >= crn_h.num_reactions) {
             printf("Error: invalid reactions has been chosen.\n");
             *err = 1;
             break;
@@ -569,8 +567,8 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
 
         out_stats->steps_elapsed++;
 
-        unsigned int start_bound_r = reactants_h.start_bounds[chosen_reaction];
-        unsigned int end_bound_r = reactants_h.end_bounds[chosen_reaction];
+        unsigned int start_bound_r = crn_h.reactants.start_bounds[chosen_reaction];
+        unsigned int end_bound_r = crn_h.reactants.end_bounds[chosen_reaction];
 
         if (start_bound_r >= end_bound_r) {
             printf("Error: in reaction bound array, start bound is greater than end bound\n");
@@ -583,8 +581,8 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
         dim3 dimBlock_update_r = dim3(BLOCK_SIZE, 1, 1);
         update_chem_amounts_using_reactants<<<dimGrid_update_r, dimBlock_update_r>>>(chem_arrays_d, reactants_d, start_bound_r, end_bound_r);
 
-        unsigned int start_bound_p = products_h.start_bounds[chosen_reaction];
-        unsigned int end_bound_p = products_h.end_bounds[chosen_reaction];
+        unsigned int start_bound_p = crn_h.products.start_bounds[chosen_reaction];
+        unsigned int end_bound_p = crn_h.products.end_bounds[chosen_reaction];
 
         if (start_bound_p >= end_bound_p) {
             printf("Error: in product bound array, start bound is greater than end bound\n");
@@ -598,20 +596,20 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
         update_chem_amounts_using_products<<<dimGrid_update_p, dimBlock_update_p>>>(chem_arrays_d, products_d, start_bound_p, end_bound_p);
 
         if (sim_params.verbosity_bit_fields & PRINT_STATES) {
-            cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
             printf("S [");
-            for (unsigned j = 0; j < num_chems; j++) {
+            for (unsigned j = 0; j < crn_h.num_chems; j++) {
                 printf("%3u", post_trial_chem_amounts_h[j]);
-               if (j < num_chems - 1) printf(", ");
+               if (j < crn_h.num_chems - 1) printf(", ");
             }
             printf("]\n");
         }
 
         // Check if a threshold has been triggered
-        dim3 dimGrid_thresh = dim3(ceil((double) num_chems / (double) BLOCK_SIZE), 1, 1);
+        dim3 dimGrid_thresh = dim3(ceil((double) crn_h.num_chems / (double) BLOCK_SIZE), 1, 1);
         dim3 dimBlock_thresh = dim3(BLOCK_SIZE, 1, 1);
         cudaMemset(within_threshold_d, true, sizeof(bool));
-        check_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(triggered_thresh_d, within_threshold_d, chem_arrays_d, num_chems);
+        check_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(triggered_thresh_d, within_threshold_d, chem_arrays_d, crn_h.num_chems);
 
         cudaMemcpy(within_threshold, within_threshold_d, sizeof(bool), cudaMemcpyDeviceToHost);
         cudaMemcpy(triggered_thresh, triggered_thresh_d, sizeof(unsigned int), cudaMemcpyDeviceToHost);
@@ -619,14 +617,14 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
 
     // If print states was enabled, then an up-to-date host-side copy of the chem amounts already exists. Therefore, don't copy it again.
     if (!(sim_params.verbosity_bit_fields & PRINT_STATES))
-        cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
     if (!(*within_threshold)) {
         if (sim_params.verbosity_bit_fields & PRINT_STATES) {
             printf("State after threshold [");
-            for (unsigned j = 0; j < num_chems; j++) {
+            for (unsigned j = 0; j < crn_h.num_chems; j++) {
                 printf("%3u", post_trial_chem_amounts_h[j]);
-                if (j < num_chems - 1) printf(", ");
+                if (j < crn_h.num_chems - 1) printf(", ");
             }
             printf("]\n");
          }
@@ -635,7 +633,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
          }
     }
 
-    if (out_stats->steps_elapsed >= max_steps && max_steps > 0) {
+    if (out_stats->steps_elapsed >= sim_params.max_steps && sim_params.max_steps > 0) {
         printf("Max steps has been reached.\n");
     }
 
