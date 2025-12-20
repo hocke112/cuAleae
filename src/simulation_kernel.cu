@@ -637,6 +637,11 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, chem_
         printf("Max steps has been reached.\n");
     }
 
+    cudaStreamDestroy(chem_arr_stream);
+    cudaStreamDestroy(reactants_stream);
+    cudaStreamDestroy(products_stream);
+    cudaStreamDestroy(rates_stream);
+    cudaStreamDestroy(sim_stream);
 
     free(propensity_h);
 
