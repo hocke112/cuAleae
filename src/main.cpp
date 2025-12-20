@@ -365,8 +365,6 @@ int main (int argc, char *argv[]) {
             }
         }
 
-        const auto end_trial = std::chrono::high_resolution_clock::now();
-
         if (sim_params.verbosity_bit_fields & PRINT_TRIALS) {
             // std::cout << "Trial " << i << "\n";
 
@@ -417,6 +415,7 @@ int main (int argc, char *argv[]) {
                std::cout << "Time    " << out_stats.time_elapsed  << "\n";
             }
 
+            const auto end_trial = std::chrono::high_resolution_clock::now();
             const std::chrono::duration<double, std::ratio<1,1>> trial_duration = end_trial - start_trial;
 
             std::cout << "Runtime " << trial_duration.count() << " s\n";
