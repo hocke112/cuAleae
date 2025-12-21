@@ -41,7 +41,7 @@ struct reaction {
     std::vector<chem_id_t> products;
     std::vector<unsigned int> product_deltas;       // Coefficients in a chemical reaction
 
-    double rate = 0;
+    float rate = 0;
 } typedef reaction_t;
 
 struct CRN {

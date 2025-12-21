@@ -275,7 +275,7 @@ int main (int argc, char *argv[]) {
     //allocates memory based on the total number of rections to have a collection of all the rates
     crn_h.rates = (float*)malloc(crn_h.num_reactions * sizeof(float));
     for (unsigned i = 0; i < crn_h.num_reactions; i++)
-        crn_h.rates[i] = static_cast<float>(crn.reactions[i]->rate);
+        crn_h.rates[i] = crn.reactions[i]->rate;
 
     std::cout << std::setiosflags(std::ios::fixed) << std::setprecision(4);
     if (print_crn_contents(crn)) {

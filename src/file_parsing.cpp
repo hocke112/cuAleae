@@ -142,7 +142,7 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
         }
 
         crn.reactions.emplace_back(std::make_unique<reaction_t>());
-        crn.reactions[reaction_no]->rate = std::stod(rate_str);
+        crn.reactions[reaction_no]->rate = std::stof(rate_str);
 
         for (std::sregex_iterator it_reactant = std::sregex_iterator(reactant_str.begin(), reactant_str.end(), term_re);
                 it_reactant != std::sregex_iterator(); ++it_reactant){
