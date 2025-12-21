@@ -3,7 +3,7 @@
 
 #include "misc_def.h"
 
-struct chemicals {
+struct chemical_arrays {
     unsigned int *chem_amounts;
     unsigned int *thresh_amounts;
     threshold_types *thresh_types;
