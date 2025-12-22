@@ -456,10 +456,10 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
  *
  * @params: Way too many to list. Just look at the function.
 */
-extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h, crn_t crn_h,
-                                        sim_params_t sim_params, output_stats_t *out_stats,
+extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h,  int *err,
+                                        crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
                                         unsigned int *triggered_thresh, bool *within_threshold,
-                                        unsigned int trial_num, int *err) {
+                                        unsigned int trial_num) {
     chem_arr_t chem_arrays_d;
     field_t reactants_d;
     field_t products_d;
