@@ -456,10 +456,9 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
  *
  * @params: Way too many to list. Just look at the function.
 */
-extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h,  int *err,
+extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h, int *err,
                                         crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
-                                        unsigned int *triggered_thresh, bool *within_threshold,
-                                        unsigned int trial_num) {
+                                        bool *within_threshold, unsigned int trial_num) {
     chem_arr_t chem_arrays_d;
     field_t reactants_d;
     field_t products_d;
@@ -496,9 +495,6 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
     unsigned int *chosen_reaction_d;
     cudaMalloc((void**)&chosen_reaction_d, sizeof(unsigned int));
 
-    unsigned int *triggered_thresh_d;
-    cudaMalloc((void**)&triggered_thresh_d, sizeof(unsigned int));
-
     unsigned int *total_triggered_threshs_d;
     cudaMalloc((void**)&total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int));
 
@@ -533,7 +529,6 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
     cudaMemsetAsync(propensity_inclusive_sums, 0.0, padded_num_reactions * sizeof(float), sim_stream);
     cudaMemsetAsync(propensity_block_sums, 0.0, crn_h.num_reactions * sizeof(float), sim_stream);
 
-    cudaMemsetAsync(triggered_thresh_d, UINT_MAX, sizeof(unsigned int), sim_stream);
     cudaMemcpyAsync(total_triggered_threshs_d, total_triggered_threshs_h, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, sim_stream);
 
     cudaDeviceSynchronize();
@@ -651,7 +646,6 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
         check_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(within_threshold_d, chem_arrays_d, crn_h.num_chems);
 
         cudaMemcpy(within_threshold, within_threshold_d, sizeof(bool), cudaMemcpyDeviceToHost);
-        cudaMemcpy(triggered_thresh, triggered_thresh_d, sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
         if (!(*within_threshold)) {
             count_triggered_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(total_triggered_threshs_d, err, chem_arrays_d);
@@ -693,8 +687,6 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
     cudaStreamDestroy(sim_stream);
 
     free(propensity_h);
-
-    cudaFree(triggered_thresh_d);
 
     cudaFree(within_threshold_d);
     cudaFree(propensities);

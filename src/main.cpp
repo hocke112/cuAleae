@@ -278,9 +278,8 @@ int main (int argc, char *argv[]) {
     }
 
     std::vector<double> avg_post_trial_chem_amounts;
-    // std::vector<unsigned int> total_triggered_threshs;
     avg_post_trial_chem_amounts.resize(crn_h.num_chems);
-    // total_triggered_threshs.resize(crn_h.num_chems);
+
     chem_id_t triggered_thresh = UINT32_MAX;
 
     std::vector<std::unordered_map<unsigned int, int>> z;
@@ -289,10 +288,11 @@ int main (int argc, char *argv[]) {
     z.resize(crn_h.num_chems);
     Prob.resize(crn_h.num_chems);
 
+
+    // Prepare all mutatable data in arrays/variables before the first trial starts
     int err = 0;
-    //Put all the data in the struct to hold all of the arrays of chemicals/substances in the network
     unsigned int *post_trial_chem_amounts = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
-    unsigned int *total_triggered_threshs   = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
+    unsigned int *total_triggered_threshs = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
     memset(total_triggered_threshs, 0, crn_h.num_chems * sizeof(unsigned int));
 
     output_stats_t trial_stats;
@@ -305,7 +305,7 @@ int main (int argc, char *argv[]) {
         out_stats.time_elapsed = 0;
 
         const auto start_trial = std::chrono::high_resolution_clock::now();
-        simulation_master(post_trial_chem_amounts, total_triggered_threshs,  &err, crn_h, sim_params, &out_stats, &triggered_thresh, &within_threshold, i);
+        simulation_master(post_trial_chem_amounts, total_triggered_threshs,  &err, crn_h, sim_params, &out_stats, &within_threshold, i);
 
         if (err) {
             return -1;
