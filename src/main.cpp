@@ -251,12 +251,6 @@ int main (int argc, char *argv[]) {
         crn_h.products.end_bounds[i] = p_idx;
     }
 
-    //Put all the data in the struct to hold all of the arrays of chemicals/substances in the network
-    unsigned int *post_trial_chem_amounts = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
-    unsigned int *total_triggered_threshs   = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
-
-    memset(total_triggered_threshs, 0, crn_h.num_chems * sizeof(unsigned int));
-
     //allocates components of the chem array for chem amounts and threshhold information
     crn_h.chem_arrays.chem_amounts   = (unsigned int*)malloc(crn_h.num_chems * sizeof(unsigned int));
     crn_h.chem_arrays.thresh_amounts = (unsigned int*)malloc(crn_h.num_chems * sizeof(unsigned int));
@@ -296,6 +290,11 @@ int main (int argc, char *argv[]) {
     Prob.resize(crn_h.num_chems);
 
     int err = 0;
+    //Put all the data in the struct to hold all of the arrays of chemicals/substances in the network
+    unsigned int *post_trial_chem_amounts = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
+    unsigned int *total_triggered_threshs   = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
+    memset(total_triggered_threshs, 0, crn_h.num_chems * sizeof(unsigned int));
+
     output_stats_t trial_stats;
     bool within_threshold = true;
     for(int i = 0; i < num_trials; ++i){
@@ -306,7 +305,7 @@ int main (int argc, char *argv[]) {
         out_stats.time_elapsed = 0;
 
         const auto start_trial = std::chrono::high_resolution_clock::now();
-        simulation_master(post_trial_chem_amounts, total_triggered_threshs, crn_h, sim_params, &out_stats, &triggered_thresh, &within_threshold, i, &err);
+        simulation_master(post_trial_chem_amounts, total_triggered_threshs,  &err, crn_h, sim_params, &out_stats, &triggered_thresh, &within_threshold, i);
 
         if (err) {
             return -1;
