@@ -280,8 +280,6 @@ int main (int argc, char *argv[]) {
     std::vector<double> avg_post_trial_chem_amounts;
     avg_post_trial_chem_amounts.resize(crn_h.num_chems);
 
-    chem_id_t triggered_thresh = UINT32_MAX;
-
     std::vector<std::unordered_map<unsigned int, int>> z;
     std::vector<std::unordered_map<unsigned int, double>> Prob;
 
@@ -364,27 +362,6 @@ int main (int argc, char *argv[]) {
 
                     return -1;
                 }
-            }
-
-            if (!within_threshold && triggered_thresh >= crn_h.num_chems) {
-                std::cerr << "Error: Invalid threshold found" << std::endl;
-
-                free(total_triggered_threshs);
-                free(post_trial_chem_amounts);
-                free(crn_h.chem_arrays.chem_amounts);
-                free(crn_h.chem_arrays.thresh_amounts);
-                free(crn_h.chem_arrays.thresh_types);
-                free(crn_h.reactants.chem_ids);
-                free(crn_h.reactants.deltas);
-                free(crn_h.reactants.start_bounds);
-                free(crn_h.reactants.end_bounds);
-                free(crn_h.products.chem_ids);
-                free(crn_h.products.deltas);
-                free(crn_h.products.start_bounds);
-                free(crn_h.products.end_bounds);
-                free(crn_h.rates);
-
-                return -1;
             }
 
             std::cout << "\nTrial stats:\n";
