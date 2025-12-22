@@ -252,14 +252,15 @@ int main (int argc, char *argv[]) {
     }
 
     //Put all the data in the struct to hold all of the arrays of chemicals/substances in the network
-    unsigned int *post_trial_chem_amounts;
+    unsigned int *post_trial_chem_amounts = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
+    unsigned int *total_triggered_threshs   = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
+
+    memset(total_triggered_threshs, 0, crn_h.num_chems * sizeof(unsigned int));
 
     //allocates components of the chem array for chem amounts and threshhold information
     crn_h.chem_arrays.chem_amounts   = (unsigned int*)malloc(crn_h.num_chems * sizeof(unsigned int));
     crn_h.chem_arrays.thresh_amounts = (unsigned int*)malloc(crn_h.num_chems * sizeof(unsigned int));
     crn_h.chem_arrays.thresh_types   = (threshold_types*)malloc(crn_h.num_chems * sizeof(threshold_types));
-
-    post_trial_chem_amounts      = (unsigned int*)malloc(crn_h.num_chems * sizeof(unsigned int));
 
     if (crn_h.num_chems != crn.thresholds.size()) {
         std::cerr << "Insufficient amount of thresholds detected. Check " << argv[1] << " for any missing thresholds." << std::endl;
@@ -283,9 +284,9 @@ int main (int argc, char *argv[]) {
     }
 
     std::vector<double> avg_post_trial_chem_amounts;
-    std::vector<unsigned int> total_triggered_threshs;
+    // std::vector<unsigned int> total_triggered_threshs;
     avg_post_trial_chem_amounts.resize(crn_h.num_chems);
-    total_triggered_threshs.resize(crn_h.num_chems);
+    // total_triggered_threshs.resize(crn_h.num_chems);
     chem_id_t triggered_thresh = UINT32_MAX;
 
     std::vector<std::unordered_map<unsigned int, int>> z;
@@ -305,7 +306,7 @@ int main (int argc, char *argv[]) {
         out_stats.time_elapsed = 0;
 
         const auto start_trial = std::chrono::high_resolution_clock::now();
-        simulation_master(post_trial_chem_amounts, crn_h, sim_params, &out_stats, &triggered_thresh, &within_threshold, i, &err);
+        simulation_master(post_trial_chem_amounts, total_triggered_threshs, crn_h, sim_params, &out_stats, &triggered_thresh, &within_threshold, i, &err);
 
         if (err) {
             return -1;
@@ -320,48 +321,23 @@ int main (int argc, char *argv[]) {
             z[j][post_trial_chem_amounts[j]]++;
         }
 
-        for (unsigned i = 0; i < crn_h.num_chems && !within_threshold; ++i) {
-            switch(crn.thresholds[i].type) {
-                case THRESH_LT:
-                    if (post_trial_chem_amounts[i] < crn.thresholds[i].amount) {
-                        total_triggered_threshs[i]++;
-                    }
-                    break;
-                case THRESH_LE:
-                    if (post_trial_chem_amounts[i] <= crn.thresholds[i].amount) {
-                        total_triggered_threshs[i]++;
-                    }
-                break;
-                case THRESH_GE:
-                    if (post_trial_chem_amounts[i] >= crn.thresholds[i].amount) {
-                        total_triggered_threshs[i]++;
-                    }
-                    break;
-                case THRESH_GT:
-                    if (post_trial_chem_amounts[i] > crn.thresholds[i].amount) {
-                        total_triggered_threshs[i]++;
-                    }
-                    break;
-                case THRESH_N:
-                    break;
-                default:
-                    std::cerr << "Error: invalid threshold code " << within_threshold << std::endl;
-
-                    free(post_trial_chem_amounts);
-                    free(crn_h.chem_arrays.chem_amounts);
-                    free(crn_h.chem_arrays.thresh_amounts);
-                    free(crn_h.chem_arrays.thresh_types);
-                    free(crn_h.reactants.chem_ids);
-                    free(crn_h.reactants.deltas);
-                    free(crn_h.reactants.start_bounds);
-                    free(crn_h.reactants.end_bounds);
-                    free(crn_h.products.chem_ids);
-                    free(crn_h.products.deltas);
-                    free(crn_h.products.start_bounds);
-                    free(crn_h.products.end_bounds);
-                    free(crn_h.rates);
-
-                    return -1;
+        for (unsigned int k = 0; k < crn_h.num_chems && err == THRESH_CODE_ERR; ++k) {
+            if (crn_h.chem_arrays.thresh_types[i] > THRESH_N || crn_h.chem_arrays.thresh_types[i] < THRESH_LT) {
+                std::cerr << "Error: invalid threshold code at " << k + 1 << std::endl;
+                free(total_triggered_threshs);
+                free(post_trial_chem_amounts);
+                free(crn_h.chem_arrays.chem_amounts);
+                free(crn_h.chem_arrays.thresh_amounts);
+                free(crn_h.chem_arrays.thresh_types);
+                free(crn_h.reactants.chem_ids);
+                free(crn_h.reactants.deltas);
+                free(crn_h.reactants.start_bounds);
+                free(crn_h.reactants.end_bounds);
+                free(crn_h.products.chem_ids);
+                free(crn_h.products.deltas);
+                free(crn_h.products.start_bounds);
+                free(crn_h.products.end_bounds);
+                free(crn_h.rates);
             }
         }
 
@@ -372,6 +348,7 @@ int main (int argc, char *argv[]) {
                 if (print_threshold(crn.chems[j].name, post_trial_chem_amounts[j], crn.thresholds[j].type, crn.thresholds[j].amount)) {
                     std::cerr << "Error: invalid threshold code " << within_threshold << std::endl;
 
+                    free(total_triggered_threshs);
                     free(post_trial_chem_amounts);
                     free(crn_h.chem_arrays.chem_amounts);
                     free(crn_h.chem_arrays.thresh_amounts);
@@ -393,6 +370,7 @@ int main (int argc, char *argv[]) {
             if (!within_threshold && triggered_thresh >= crn_h.num_chems) {
                 std::cerr << "Error: Invalid threshold found" << std::endl;
 
+                free(total_triggered_threshs);
                 free(post_trial_chem_amounts);
                 free(crn_h.chem_arrays.chem_amounts);
                 free(crn_h.chem_arrays.thresh_amounts);
@@ -501,6 +479,7 @@ int main (int argc, char *argv[]) {
             default:
                 std::cerr << "Error: invalid threshold code" << std::endl;
 
+                free(total_triggered_threshs);
                 free(post_trial_chem_amounts);
                 free(crn_h.chem_arrays.chem_amounts);
                 free(crn_h.chem_arrays.thresh_amounts);
@@ -531,6 +510,7 @@ int main (int argc, char *argv[]) {
     std::cout << "total runtime      " << trial_duration.count() << " s\n";
 
     //frees at the end and deletes
+    free(total_triggered_threshs);
     free(post_trial_chem_amounts);
     free(crn_h.chem_arrays.chem_amounts);
     free(crn_h.chem_arrays.thresh_amounts);
