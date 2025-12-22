@@ -353,7 +353,7 @@ __global__ void check_thresholds(bool *within_threshold, chem_arr_t chem_arrays,
     }
 }
 
-__global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs, int *err, chem_arr_t chem_arrays) {
+__global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs, int *err, chem_arr_t chem_arrays, unsigned int num_chems) {
     unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     __shared__ int local_err;
@@ -363,31 +363,33 @@ __global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs
     }
 
     __syncthreads();
-    switch(chem_arrays.thresh_types[i]) {
-        case THRESH_LT:
-            if (chem_arrays.chem_amounts[i] < chem_arrays.thresh_amounts[i]) {
-                total_triggered_threshs[i]++;
-            }
+    if (i < num_chems) {
+        switch(chem_arrays.thresh_types[i]) {
+            case THRESH_LT:
+                if (chem_arrays.chem_amounts[i] < chem_arrays.thresh_amounts[i]) {
+                    total_triggered_threshs[i]++;
+                }
+                break;
+            case THRESH_LE:
+                if (chem_arrays.chem_amounts[i] <= chem_arrays.thresh_amounts[i]) {
+                    total_triggered_threshs[i]++;
+                }
             break;
-        case THRESH_LE:
-            if (chem_arrays.chem_amounts[i] <= chem_arrays.thresh_amounts[i]) {
-                total_triggered_threshs[i]++;
-            }
-        break;
-        case THRESH_GE:
-            if (chem_arrays.chem_amounts[i] >= chem_arrays.thresh_amounts[i]) {
-                total_triggered_threshs[i]++;
-            }
-            break;
-        case THRESH_GT:
-            if (chem_arrays.chem_amounts[i] > chem_arrays.thresh_amounts[i]) {
-                total_triggered_threshs[i]++;
-            }
-            break;
-        case THRESH_N:
-            break;
-        default:
-            atomicExch(&local_err, 1);
+            case THRESH_GE:
+                if (chem_arrays.chem_amounts[i] >= chem_arrays.thresh_amounts[i]) {
+                    total_triggered_threshs[i]++;
+                }
+                break;
+            case THRESH_GT:
+                if (chem_arrays.chem_amounts[i] > chem_arrays.thresh_amounts[i]) {
+                    total_triggered_threshs[i]++;
+                }
+                break;
+            case THRESH_N:
+                break;
+            default:
+                atomicExch(&local_err, 1);
+        }
     }
 
     __syncthreads();
@@ -648,7 +650,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
         cudaMemcpy(within_threshold, within_threshold_d, sizeof(bool), cudaMemcpyDeviceToHost);
 
         if (!(*within_threshold)) {
-            count_triggered_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(total_triggered_threshs_d, err, chem_arrays_d);
+            count_triggered_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(total_triggered_threshs_d, err, chem_arrays_d, crn_h.num_chems);
 
             if (*err) {
                 printf("Error: invalid threshold code. Please check your .in file for errors.");
