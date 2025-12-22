@@ -307,19 +307,6 @@ int main (int argc, char *argv[]) {
         const auto start_trial = std::chrono::high_resolution_clock::now();
         simulation_master(post_trial_chem_amounts, total_triggered_threshs,  &err, crn_h, sim_params, &out_stats, &within_threshold, i);
 
-        if (err) {
-            return -1;
-        }
-
-        trial_stats.steps_elapsed += out_stats.steps_elapsed;
-        trial_stats.time_elapsed += out_stats.time_elapsed;
-
-        for (int j = 0; j < crn_h.num_chems; j++) {
-            avg_post_trial_chem_amounts[j] += (double) post_trial_chem_amounts[j] / (double) num_trials;
-            if (!z[j].count(post_trial_chem_amounts[j])) z[j][post_trial_chem_amounts[j]] = 0;
-            z[j][post_trial_chem_amounts[j]]++;
-        }
-
         for (unsigned int k = 0; k < crn_h.num_chems && err == THRESH_CODE_ERR; ++k) {
             if (crn_h.chem_arrays.thresh_types[i] > THRESH_N || crn_h.chem_arrays.thresh_types[i] < THRESH_LT) {
                 std::cerr << "Error: invalid threshold code at " << k + 1 << std::endl;
@@ -338,6 +325,19 @@ int main (int argc, char *argv[]) {
                 free(crn_h.products.end_bounds);
                 free(crn_h.rates);
             }
+        }
+
+        if (err) {
+            return -1;
+        }
+
+        trial_stats.steps_elapsed += out_stats.steps_elapsed;
+        trial_stats.time_elapsed += out_stats.time_elapsed;
+
+        for (int j = 0; j < crn_h.num_chems; j++) {
+            avg_post_trial_chem_amounts[j] += (double) post_trial_chem_amounts[j] / (double) num_trials;
+            if (!z[j].count(post_trial_chem_amounts[j])) z[j][post_trial_chem_amounts[j]] = 0;
+            z[j][post_trial_chem_amounts[j]]++;
         }
 
         if (sim_params.verbosity_bit_fields & PRINT_TRIALS) {
