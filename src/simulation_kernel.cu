@@ -654,6 +654,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
 
             if (*err) {
                 printf("Error: invalid threshold code. Please check your .in file for errors.");
+                break;
             }
         }
     }
