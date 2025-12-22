@@ -303,14 +303,12 @@ __global__ void update_chem_amounts_using_products(chem_arr_t chem_arrays, field
  * @param chem_arrays: a struct containing arrays for the chemical amounts, threshold amounts, and threshold types
  * @param num_chems: the count of all chemical species in the CRN, not the amount of each chemical
 */
-__global__ void check_thresholds(unsigned int *triggered_thresh, bool *within_threshold, chem_arr_t chem_arrays, unsigned int num_chems) {
+__global__ void check_thresholds(bool *within_threshold, chem_arr_t chem_arrays, unsigned int num_chems) {
     unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    __shared__ unsigned int block_triggered_thresh;
     __shared__ bool block_within_threshold;
 
     if (threadIdx.x == 0) {
-        block_triggered_thresh = UINT_MAX;
         block_within_threshold = true;
     }
 
@@ -325,25 +323,21 @@ __global__ void check_thresholds(unsigned int *triggered_thresh, bool *within_th
             case THRESH_LT:
                 if (chem_amount < thresh_amount) {
                     block_within_threshold = false;
-                    atomicExch(&block_triggered_thresh, i);
                 }
                 break;
             case THRESH_LE:
                 if (chem_amount <= thresh_amount) {
                     block_within_threshold = false;
-                    atomicExch(&block_triggered_thresh, i);
                 }
                 break;
             case THRESH_GE:
                 if (chem_amount >= thresh_amount) {
                     block_within_threshold = false;
-                    atomicExch(&block_triggered_thresh, i);
                 }
                 break;
             case THRESH_GT:
                 if (chem_amount > thresh_amount) {
                     block_within_threshold = false;
-                    atomicExch(&block_triggered_thresh, i);
                 }
                 break;
             case THRESH_N:
@@ -356,7 +350,49 @@ __global__ void check_thresholds(unsigned int *triggered_thresh, bool *within_th
     if (threadIdx.x == 0 && !block_within_threshold) {
         // Like before, each block that detects a triggered threshold will write the same value to within_threshold, so race conditions don't matter
         *within_threshold = false;
-        atomicExch(triggered_thresh, block_triggered_thresh);
+    }
+}
+
+__global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs, int *err, chem_arr_t chem_arrays) {
+    unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    __shared__ int local_err;
+
+    if (threadIdx.x == 0) {
+        local_err = 0;
+    }
+
+    __syncthreads();
+    switch(chem_arrays.thresh_types[i]) {
+        case THRESH_LT:
+            if (chem_arrays.chem_amounts[i] < chem_arrays.thresh_amounts[i]) {
+                total_triggered_threshs[i]++;
+            }
+            break;
+        case THRESH_LE:
+            if (chem_arrays.chem_amounts[i] <= chem_arrays.thresh_amounts[i]) {
+                total_triggered_threshs[i]++;
+            }
+        break;
+        case THRESH_GE:
+            if (chem_arrays.chem_amounts[i] >= chem_arrays.thresh_amounts[i]) {
+                total_triggered_threshs[i]++;
+            }
+            break;
+        case THRESH_GT:
+            if (chem_arrays.chem_amounts[i] > chem_arrays.thresh_amounts[i]) {
+                total_triggered_threshs[i]++;
+            }
+            break;
+        case THRESH_N:
+            break;
+        default:
+            atomicExch(&local_err, 1);
+    }
+
+    __syncthreads();
+    if (threadIdx.x == 0 && local_err) {
+        atomicExch(err, THRESH_CODE_ERR);
     }
 }
 
@@ -420,7 +456,7 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
  *
  * @params: Way too many to list. Just look at the function.
 */
-extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, crn_t crn_h,
+extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h, crn_t crn_h,
                                         sim_params_t sim_params, output_stats_t *out_stats,
                                         unsigned int *triggered_thresh, bool *within_threshold,
                                         unsigned int trial_num, int *err) {
@@ -463,6 +499,9 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, crn_t
     unsigned int *triggered_thresh_d;
     cudaMalloc((void**)&triggered_thresh_d, sizeof(unsigned int));
 
+    unsigned int *total_triggered_threshs_d;
+    cudaMalloc((void**)&total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int));
+
     *within_threshold = true;
     bool *within_threshold_d;
     cudaMalloc((void**)&within_threshold_d, sizeof(bool));
@@ -495,6 +534,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, crn_t
     cudaMemsetAsync(propensity_block_sums, 0.0, crn_h.num_reactions * sizeof(float), sim_stream);
 
     cudaMemsetAsync(triggered_thresh_d, UINT_MAX, sizeof(unsigned int), sim_stream);
+    cudaMemcpyAsync(total_triggered_threshs_d, total_triggered_threshs_h, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, sim_stream);
 
     cudaDeviceSynchronize();
 
@@ -571,8 +611,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, crn_t
         unsigned int end_bound_r = crn_h.reactants.end_bounds[chosen_reaction];
 
         if (start_bound_r >= end_bound_r) {
-            printf("Error: in reaction bound array, start bound is greater than end bound\n");
-            *err = 1;
+            *err = REAC_BOUND_ARR_ERR;
             break;
         }
 
@@ -586,7 +625,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, crn_t
 
         if (start_bound_p >= end_bound_p) {
             printf("Error: in product bound array, start bound is greater than end bound\n");
-            *err = 1;
+            *err = PROD_BOUND_ARR_ERR;
             break;
         }
 
@@ -609,10 +648,18 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, crn_t
         dim3 dimGrid_thresh = dim3(ceil((double) crn_h.num_chems / (double) BLOCK_SIZE), 1, 1);
         dim3 dimBlock_thresh = dim3(BLOCK_SIZE, 1, 1);
         cudaMemset(within_threshold_d, true, sizeof(bool));
-        check_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(triggered_thresh_d, within_threshold_d, chem_arrays_d, crn_h.num_chems);
+        check_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(within_threshold_d, chem_arrays_d, crn_h.num_chems);
 
         cudaMemcpy(within_threshold, within_threshold_d, sizeof(bool), cudaMemcpyDeviceToHost);
         cudaMemcpy(triggered_thresh, triggered_thresh_d, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
+        if (!(*within_threshold)) {
+            count_triggered_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(total_triggered_threshs_d, err, chem_arrays_d);
+
+            if (*err) {
+                printf("Error: invalid threshold code. Please check your .in file for errors.");
+            }
+        }
     }
 
     // If print states was enabled, then an up-to-date host-side copy of the chem amounts already exists. Therefore, don't copy it again.
@@ -620,6 +667,8 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, crn_t
         cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
     if (!(*within_threshold)) {
+        cudaMemcpy(total_triggered_threshs_h, total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
         if (sim_params.verbosity_bit_fields & PRINT_STATES) {
             printf("State after threshold [");
             for (unsigned j = 0; j < crn_h.num_chems; j++) {
