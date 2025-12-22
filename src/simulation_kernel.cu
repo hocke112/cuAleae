@@ -353,13 +353,13 @@ __global__ void check_thresholds(bool *within_threshold, chem_arr_t chem_arrays,
     }
 }
 
-__global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs, int *err, chem_arr_t chem_arrays, unsigned int num_chems) {
+__global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs, int *invalid_thresh_type, chem_arr_t chem_arrays, unsigned int num_chems) {
     unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    __shared__ int local_err;
+    __shared__ int local_invalid_thresh_type;
 
     if (threadIdx.x == 0) {
-        local_err = 0;
+        local_invalid_thresh_type = 0;
     }
 
     __syncthreads();
@@ -388,13 +388,13 @@ __global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs
             case THRESH_N:
                 break;
             default:
-                atomicExch(&local_err, 1);
+                atomicExch(&local_invalid_thresh_type, 1);
         }
     }
 
     __syncthreads();
-    if (threadIdx.x == 0 && local_err) {
-        atomicExch(err, THRESH_CODE_ERR);
+    if (threadIdx.x == 0 && local_invalid_thresh_type) {
+        atomicExch(invalid_thresh_type, THRESH_CODE_ERR);
     }
 }
 
@@ -458,7 +458,7 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
  *
  * @params: Way too many to list. Just look at the function.
 */
-extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h, int *err,
+extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h, simulation_err_t *err,
                                         crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
                                         bool *within_threshold, unsigned int trial_num) {
     chem_arr_t chem_arrays_d;
@@ -504,11 +504,15 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
     bool *within_threshold_d;
     cudaMalloc((void**)&within_threshold_d, sizeof(bool));
 
-    cudaStream_t chem_arr_stream, reactants_stream, products_stream, rates_stream, sim_stream;      // Prepare simulation with streams.
+    int *is_thresh_type_invalid;
+    cudaMalloc((void**)&is_thresh_type_invalid, sizeof(int));
+
+    cudaStream_t chem_arr_stream, reactants_stream, products_stream, rates_stream, propensity_stream, sim_stream;      // Prepare simulation with streams.
     cudaStreamCreate(&chem_arr_stream);
     cudaStreamCreate(&reactants_stream);
     cudaStreamCreate(&products_stream);
     cudaStreamCreate(&rates_stream);
+    cudaStreamCreate(&propensity_stream);
     cudaStreamCreate(&sim_stream);
 
     cudaMemcpyAsync(chem_arrays_d.chem_amounts, crn_h.chem_arrays.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, chem_arr_stream);
@@ -527,11 +531,12 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
 
     cudaMemcpyAsync(rates_d, crn_h.rates, crn_h.num_reactions * sizeof(float), cudaMemcpyHostToDevice, rates_stream);
 
-    cudaMemsetAsync(propensities, 0.0, padded_num_reactions * sizeof(float), sim_stream);
-    cudaMemsetAsync(propensity_inclusive_sums, 0.0, padded_num_reactions * sizeof(float), sim_stream);
-    cudaMemsetAsync(propensity_block_sums, 0.0, crn_h.num_reactions * sizeof(float), sim_stream);
+    cudaMemsetAsync(propensities, 0.0, padded_num_reactions * sizeof(float), propensity_stream);
+    cudaMemsetAsync(propensity_inclusive_sums, 0.0, padded_num_reactions * sizeof(float), propensity_stream);
+    cudaMemsetAsync(propensity_block_sums, 0.0, crn_h.num_reactions * sizeof(float), propensity_stream);
 
     cudaMemcpyAsync(total_triggered_threshs_d, total_triggered_threshs_h, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, sim_stream);
+    cudaMemsetAsync(is_thresh_type_invalid, 0, sizeof(int), sim_stream);
 
     cudaDeviceSynchronize();
 
@@ -582,7 +587,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
 
         if (chosen_reaction >= crn_h.num_reactions) {
             printf("Error: invalid reactions has been chosen.\n");
-            *err = 1;
+            *err = INVALID_REACT_CHOSEN;
             break;
         }
 
@@ -608,6 +613,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
         unsigned int end_bound_r = crn_h.reactants.end_bounds[chosen_reaction];
 
         if (start_bound_r >= end_bound_r) {
+            printf("Error: in reactant bound array, start bound is greater than end bound\n");
             *err = REAC_BOUND_ARR_ERR;
             break;
         }
@@ -650,7 +656,8 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
         cudaMemcpy(within_threshold, within_threshold_d, sizeof(bool), cudaMemcpyDeviceToHost);
 
         if (!(*within_threshold)) {
-            count_triggered_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(total_triggered_threshs_d, err, chem_arrays_d, crn_h.num_chems);
+            count_triggered_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(total_triggered_threshs_d, is_thresh_type_invalid, chem_arrays_d, crn_h.num_chems);
+            cudaMemcpy(err, is_thresh_type_invalid, sizeof(int), cudaMemcpyDeviceToHost);
 
             if (*err) {
                 printf("Error: invalid threshold code. Please check your .in file for errors.");
@@ -687,6 +694,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
     cudaStreamDestroy(reactants_stream);
     cudaStreamDestroy(products_stream);
     cudaStreamDestroy(rates_stream);
+    cudaStreamDestroy(propensity_stream);
     cudaStreamDestroy(sim_stream);
 
     free(propensity_h);

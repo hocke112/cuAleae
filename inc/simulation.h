@@ -9,10 +9,13 @@
 #define PRINT_TRACE      4
 #define PRINT_STATES     8
 
-// Error codes
-#define REAC_BOUND_ARR_ERR 1
-#define PROD_BOUND_ARR_ERR 2
-#define THRESH_CODE_ERR    3
+enum simulation_err_t {
+    SIMULATION_SUCCESS   = 0,
+    INVALID_REACT_CHOSEN = 1,
+    REAC_BOUND_ARR_ERR   = 2,
+    PROD_BOUND_ARR_ERR   = 3,
+    THRESH_CODE_ERR      = 4
+};
 
 // extern "C" void simulation_master(unsigned int *post_trial_chem_amounts,
 //                                     chem_arr_t chem_arrays_h, field_t reactants_h, field_t products_h, float *rates_h,
@@ -23,7 +26,7 @@
 //                                     unsigned int trial_num, int *err);
 
 extern "C" void simulation_master(unsigned int *post_trial_chem_amounts, unsigned int *total_triggered_threshs_h,
-                                        int *err, crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
+                                        simulation_err_t *err, crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
                                         bool *within_threshold, unsigned int trial_num);
 
 #endif

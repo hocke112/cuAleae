@@ -288,7 +288,7 @@ int main (int argc, char *argv[]) {
 
 
     // Prepare all mutatable data in arrays/variables before the first trial starts
-    int err = 0;
+    simulation_err_t err = SIMULATION_SUCCESS;
     unsigned int *post_trial_chem_amounts = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
     unsigned int *total_triggered_threshs = (unsigned int*) malloc(crn_h.num_chems * sizeof(unsigned int));
     memset(total_triggered_threshs, 0, crn_h.num_chems * sizeof(unsigned int));
@@ -303,29 +303,31 @@ int main (int argc, char *argv[]) {
         out_stats.time_elapsed = 0;
 
         const auto start_trial = std::chrono::high_resolution_clock::now();
-        simulation_master(post_trial_chem_amounts, total_triggered_threshs,  &err, crn_h, sim_params, &out_stats, &within_threshold, i);
+        simulation_master(post_trial_chem_amounts, total_triggered_threshs, &err, crn_h, sim_params, &out_stats, &within_threshold, i);
 
         for (unsigned int k = 0; k < crn_h.num_chems && err == THRESH_CODE_ERR; ++k) {
             if (crn_h.chem_arrays.thresh_types[i] > THRESH_N || crn_h.chem_arrays.thresh_types[i] < THRESH_LT) {
                 std::cerr << "Error: invalid threshold code at " << k + 1 << std::endl;
-                free(total_triggered_threshs);
-                free(post_trial_chem_amounts);
-                free(crn_h.chem_arrays.chem_amounts);
-                free(crn_h.chem_arrays.thresh_amounts);
-                free(crn_h.chem_arrays.thresh_types);
-                free(crn_h.reactants.chem_ids);
-                free(crn_h.reactants.deltas);
-                free(crn_h.reactants.start_bounds);
-                free(crn_h.reactants.end_bounds);
-                free(crn_h.products.chem_ids);
-                free(crn_h.products.deltas);
-                free(crn_h.products.start_bounds);
-                free(crn_h.products.end_bounds);
-                free(crn_h.rates);
             }
         }
 
         if (err) {
+            free(total_triggered_threshs);
+            free(post_trial_chem_amounts);
+
+            free(crn_h.chem_arrays.chem_amounts);
+            free(crn_h.chem_arrays.thresh_amounts);
+            free(crn_h.chem_arrays.thresh_types);
+            free(crn_h.reactants.chem_ids);
+            free(crn_h.reactants.deltas);
+            free(crn_h.reactants.start_bounds);
+            free(crn_h.reactants.end_bounds);
+            free(crn_h.products.chem_ids);
+            free(crn_h.products.deltas);
+            free(crn_h.products.start_bounds);
+            free(crn_h.products.end_bounds);
+            free(crn_h.rates);
+
             return -1;
         }
 
