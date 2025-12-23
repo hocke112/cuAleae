@@ -27,6 +27,6 @@ enum simulation_err_t {
 
 extern "C" void simulation_master(unsigned int *post_trial_chem_amounts, unsigned int *total_triggered_threshs_h,
                                         simulation_err_t *err, crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
-                                        bool *within_threshold, unsigned int trial_num);
+                                        unsigned int trial_num);
 
 #endif

@@ -460,7 +460,7 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
 */
 extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h, simulation_err_t *err,
                                         crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
-                                        bool *within_threshold, unsigned int trial_num) {
+                                        unsigned int trial_num) {
     chem_arr_t chem_arrays_d;
     field_t reactants_d;
     field_t products_d;
@@ -500,7 +500,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
     unsigned int *total_triggered_threshs_d;
     cudaMalloc((void**)&total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int));
 
-    *within_threshold = true;
+    bool within_threshold = true;
     bool *within_threshold_d;
     cudaMalloc((void**)&within_threshold_d, sizeof(bool));
 
@@ -542,7 +542,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
 
     if (trial_num <= 0) srand(time(NULL));
 
-    while (*within_threshold && (sim_params.max_time <= 0 || out_stats->time_elapsed < sim_params.max_time) && (sim_params.max_steps <= 0 || out_stats->steps_elapsed < sim_params.max_steps)) {
+    while (within_threshold && (sim_params.max_time <= 0 || out_stats->time_elapsed < sim_params.max_time) && (sim_params.max_steps <= 0 || out_stats->steps_elapsed < sim_params.max_steps)) {
         unsigned int num_blocks = (unsigned int) ceil((float) crn_h.num_reactions/(2*BLOCK_SIZE));
 
         // Find propensity of each reaction
@@ -653,9 +653,9 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
         cudaMemset(within_threshold_d, true, sizeof(bool));
         check_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(within_threshold_d, chem_arrays_d, crn_h.num_chems);
 
-        cudaMemcpy(within_threshold, within_threshold_d, sizeof(bool), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&within_threshold, within_threshold_d, sizeof(bool), cudaMemcpyDeviceToHost);
 
-        if (!(*within_threshold)) {
+        if (!within_threshold) {
             count_triggered_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(total_triggered_threshs_d, is_thresh_type_invalid, chem_arrays_d, crn_h.num_chems);
             cudaMemcpy(err, is_thresh_type_invalid, sizeof(int), cudaMemcpyDeviceToHost);
 
@@ -670,7 +670,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
     if (!(sim_params.verbosity_bit_fields & PRINT_STATES))
         cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
-    if (!(*within_threshold)) {
+    if (!within_threshold) {
         cudaMemcpy(total_triggered_threshs_h, total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
         if (sim_params.verbosity_bit_fields & PRINT_STATES) {

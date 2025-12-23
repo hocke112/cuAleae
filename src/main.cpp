@@ -294,7 +294,6 @@ int main (int argc, char *argv[]) {
     memset(total_triggered_threshs, 0, crn_h.num_chems * sizeof(unsigned int));
 
     output_stats_t trial_stats;
-    bool within_threshold = true;
     for(int i = 0; i < num_trials; ++i){
         //Calls the simulation master for the given trial i
         if (sim_params.verbosity_bit_fields & PRINT_TRIALS)
@@ -303,7 +302,7 @@ int main (int argc, char *argv[]) {
         out_stats.time_elapsed = 0;
 
         const auto start_trial = std::chrono::high_resolution_clock::now();
-        simulation_master(post_trial_chem_amounts, total_triggered_threshs, &err, crn_h, sim_params, &out_stats, &within_threshold, i);
+        simulation_master(post_trial_chem_amounts, total_triggered_threshs, &err, crn_h, sim_params, &out_stats, i);
 
         for (unsigned int k = 0; k < crn_h.num_chems && err == THRESH_CODE_ERR; ++k) {
             if (crn_h.chem_arrays.thresh_types[i] > THRESH_N || crn_h.chem_arrays.thresh_types[i] < THRESH_LT) {
