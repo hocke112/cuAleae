@@ -64,7 +64,7 @@ __global__ void calculate_propensity_kernel(float* propensities, chem_arr_t chem
             }
         }
 
-        propensities[i] = local_propensity;
+        propensities[i] = max(local_propensity, 0.0f);
     }
     __syncthreads();
 }
@@ -96,7 +96,7 @@ __global__ void prescanArrayKernel(float *out_array, float *in_array, float *blo
 	if (in_data_index1 < num_elements)
 		scan_array[blockDim.x + t] = in_array[in_data_index1];
 	else
-		scan_array[blockDim.x + t] = 0.0;
+		scan_array[blockDim.x + t] = 0.0f;
 
 	__syncthreads();
 
@@ -127,12 +127,12 @@ __global__ void prescanArrayKernel(float *out_array, float *in_array, float *blo
 	if (in_data_index0 < num_elements)										// Store data from shared memory to output
 		out_array[in_data_index0] = scan_array[t];
 	else
-		out_array[in_data_index0] = 0.0;
+		out_array[in_data_index0] = 0.0f;
 
 	if (in_data_index1 < num_elements)
 		out_array[in_data_index1] = scan_array[blockDim.x + t];
 	else
-		out_array[in_data_index1] = 0.0;
+		out_array[in_data_index1] = 0.0f;
 }
 
 /*
@@ -161,7 +161,7 @@ __global__ void scanBlockSumsKernel(float *scanned_block_sums, float *block_sums
 	if (in_data_index1 < num_elements)
 		scan_array[blockDim.x + t] = block_sums[in_data_index1];
 	else
-		scan_array[blockDim.x + t] = 0;
+		scan_array[blockDim.x + t] = 0.0f;
 
 	__syncthreads();
 
@@ -487,7 +487,7 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
 */
 unsigned int choose_reaction(unsigned int *candidate_reactions, unsigned int num_reactions) {
     if (num_reactions <= 0) {
-        unsigned int chosen_reaction;
+        unsigned int chosen_reaction = 0;
         cudaMemcpy(&chosen_reaction, &candidate_reactions[0], sizeof(unsigned int), cudaMemcpyDeviceToHost);
         return chosen_reaction;
     }
@@ -608,8 +608,6 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
         cudaMemcpy(&propensity_sum, &propensity_inclusive_sums[crn_h.num_reactions - 1], sizeof(float), cudaMemcpyDeviceToHost);
 
         if (propensity_sum <= 0.0f) {
-            if (sim_params.verbosity_bit_fields & PRINT_STATES)
-                cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
             if (sim_params.verbosity_bit_fields & PRINT_TERMINAL) {
                 printf("No further reactions are possible\n");
             }
@@ -627,11 +625,11 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
         }
 
         float r = rand()/(float)RAND_MAX;
-        unsigned int chosen_reaction = UINT_MAX;
+        // unsigned int chosen_reaction = UINT_MAX;
 
         // Choose a reaction
         find_reaction_candidates<<<dimGrid, dimBlock>>>(candidate_reactions, propensity_inclusive_sums, propensity_sum, r, crn_h.num_reactions);
-        chosen_reaction = choose_reaction(candidate_reactions, crn_h.num_reactions);
+        unsigned int chosen_reaction = choose_reaction(candidate_reactions, crn_h.num_reactions);
 
         if (chosen_reaction >= crn_h.num_reactions) {
             printf("Error: invalid reactions has been chosen.\n");
@@ -715,27 +713,28 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
     }
 
     // If print states was enabled, then an up-to-date host-side copy of the chem amounts already exists. Therefore, don't copy it again.
-    if (!(sim_params.verbosity_bit_fields & PRINT_STATES))
+    if (ret_err == SIMULATION_SUCCESS) {
         cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
-    if (!within_threshold) {
-        cudaMemcpy(total_triggered_threshs_h, total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        if (!within_threshold) {
+            cudaMemcpy(total_triggered_threshs_h, total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
-        if (sim_params.verbosity_bit_fields & PRINT_STATES) {
-            printf("State after threshold [");
-            for (unsigned j = 0; j < crn_h.num_chems; j++) {
-                printf("%3u", post_trial_chem_amounts_h[j]);
-                if (j < crn_h.num_chems - 1) printf(", ");
+            if (sim_params.verbosity_bit_fields & PRINT_STATES) {
+                printf("State after threshold [");
+                for (unsigned j = 0; j < crn_h.num_chems; j++) {
+                    printf("%3u", post_trial_chem_amounts_h[j]);
+                    if (j < crn_h.num_chems - 1) printf(", ");
+                }
+                printf("]\n");
             }
-            printf("]\n");
-         }
-         if (sim_params.verbosity_bit_fields & PRINT_TERMINAL) {
-            printf("State exceeds threshold.\n");
-         }
-    }
+            if (sim_params.verbosity_bit_fields & PRINT_TERMINAL) {
+                printf("State exceeds threshold.\n");
+            }
+        }
 
-    if (out_stats->steps_elapsed >= sim_params.max_steps && sim_params.max_steps > 0) {
-        printf("Max steps has been reached.\n");
+        if (out_stats->steps_elapsed >= sim_params.max_steps && sim_params.max_steps > 0) {
+            printf("Max steps has been reached.\n");
+        }
     }
 
     cudaStreamDestroy(chem_arr_stream);
