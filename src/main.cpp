@@ -345,7 +345,7 @@ int main (int argc, char *argv[]) {
 
             for (int j = 0; j < crn_h.num_chems; ++j) {
                 if (print_threshold(crn.chems[j].name, post_trial_chem_amounts[j], crn.thresholds[j].type, crn.thresholds[j].amount)) {
-                    std::cerr << "Error: invalid threshold code " << within_threshold << std::endl;
+                    std::cerr << "Error: invalid threshold code at line " << j + 1 << std::endl;
 
                     free(total_triggered_threshs);
                     free(post_trial_chem_amounts);
