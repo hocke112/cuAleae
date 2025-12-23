@@ -51,8 +51,8 @@ int print_crn_contents(const CRN &crn) {
             std::cout << crn.chems[crn.reactions[k]->reactants[l]].name << " " << crn.reactions[k]->reactant_deltas[l] << " ";
         }
         std::cout << ": ";
-        for (unsigned int m = 0; m < crn.reactions[k]->reactants.size(); ++m) {
-            std::cout << crn.chems[crn.reactions[k]->reactants[m]].name << " " << crn.reactions[k]->reactant_deltas[m] << " ";
+        for (unsigned int m = 0; m < crn.reactions[k]->product_deltas.size(); ++m) {
+            std::cout << crn.chems[crn.reactions[k]->products[m]].name << " " << crn.reactions[k]->product_deltas[m] << " ";
         }
         std::cout << ": " << crn.reactions[k]->rate << "\n";
     }
