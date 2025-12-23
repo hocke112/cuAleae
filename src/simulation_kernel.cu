@@ -221,35 +221,61 @@ __global__ void addScanBlocksKernel(float *out_array, float *block_sums, unsigne
 }
 
 /*
- * A kernel function to choose a reaction based on a randomly-generated number and the propensity inclusive sums. This is mainly
- * created to avoid a cudaMemcpy call of the propensity_inclusive_sums for each iteration of the while loop in simulation_master.
+ * A kernel function to choose a reaction based on a randomly-generated number and the propensity inclusive sums. This is needed
+ * for choose_reaction() to work.
  *
- * @param chosen_reaction: an output pointer to one unsigned integer
+ * @param candidate_reactions: an array of unsigned integers representing a reaction
  * @param propensity_inclusive_sums: an input array containing inclusive prefix sum of the propensities
  * @param propensity_sum: the sum of all propensities
  * @param r: a randomly-generated number
  * @param num_reactions: the count of all reactions in the CRN
 */
-__global__ void choose_reaction_kernel(unsigned int *chosen_reaction, float *propensity_inclusive_sums, float propensity_sum, float r, unsigned int num_reactions) {
+__global__ void find_reaction_candidates(unsigned int *candidate_reactions, float *propensity_inclusive_sums, float propensity_sum, float r, unsigned int num_reactions) {
     unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    __shared__ unsigned int block_chosen_reaction;
-
-    if (threadIdx.x == 0)
-        block_chosen_reaction = UINT_MAX;
-
-    __syncthreads();
     if (i < num_reactions) {
         float probability = (float) propensity_inclusive_sums[i] / (float) propensity_sum;
 
         if (probability > r) {
-            atomicMin(&block_chosen_reaction, i);
+            candidate_reactions[i] = i;
+        } else {
+            candidate_reactions[i] = UINT_MAX;
         }
     }
+}
 
-    if (threadIdx.x == 0)
-        atomicMin(chosen_reaction, block_chosen_reaction);
-    __syncthreads();
+/*
+ * A kernel function to choose a reaction via reduction.
+ *
+ * @param candidate_reactions: an array of unsigned integers representing a reaction
+ * @param num_reactions: the count of all reactions in the CRN
+*/
+__global__ void choose_reaction_kernel(unsigned int *candidate_reactions, unsigned int num_reactions) {
+    __shared__ unsigned int partial_min[2 * BLOCK_SIZE]; 					// shmem for each block
+
+	unsigned int t = threadIdx.x; 											// Setup vars for indexing to global and shmem
+	unsigned int start = 2 * blockDim.x * blockIdx.x;
+
+	unsigned int in_data_index0 = start + t;
+	unsigned int in_data_index1 = start + blockDim.x + t;
+
+	if (in_data_index0 < num_reactions)													// To prevent out-of-bounds errors
+		partial_min[t] = candidate_reactions[in_data_index0]; 							// These errors occur when n is not a power of 2
+	else
+		partial_min[t] = UINT_MAX;
+
+	if (in_data_index1 < num_reactions)
+		partial_min[blockDim.x + t] = candidate_reactions[in_data_index1];
+	else
+		partial_min[blockDim.x + t] = UINT_MAX;
+
+	for (unsigned int stride = blockDim.x; stride >= 1; stride >>= 1) { 	// Choose the reaction for each stride
+		__syncthreads();
+		if (t < stride)
+			partial_min[t] = min(partial_min[t], partial_min[t + stride]);
+	}
+
+	candidate_reactions[blockIdx.x] = partial_min[0];									// Write back to global memory
 }
 
 /*
@@ -453,6 +479,27 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
 }
 
 /*
+ * The recursive calling function of kernel function above.
+ *
+ * @param candidate_reactions: an array of unsigned integers representing a reaction
+ * @param num_reactions: the count of all reactions in the CRN
+ * @return the chosen reaction
+*/
+unsigned int choose_reaction(unsigned int *candidate_reactions, unsigned int num_reactions) {
+    if (num_reactions <= 0) {
+        unsigned int chosen_reaction;
+        cudaMemcpy(&chosen_reaction, &candidate_reactions[0], sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        return chosen_reaction;
+    }
+
+	dim3 dimGrid = dim3(ceil((float) num_reactions / (float) (2*BLOCK_SIZE)), 1, 1);
+    dim3 dimBlock = dim3(BLOCK_SIZE, 1, 1);
+	choose_reaction_kernel<<<dimGrid, dimBlock>>>(candidate_reactions, num_reactions);
+
+	return choose_reaction(candidate_reactions, num_reactions/2);
+}
+
+/*
  * The master function that handles device memory needed for the simulation and transfers to and from it, performs computation needed for
  * said simulation, and some error handling outside of kernel functions.
  *
@@ -496,8 +543,8 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
 
     float *propensity_h = (float*) malloc(crn_h.num_reactions * sizeof(float));
 
-    unsigned int *chosen_reaction_d;
-    cudaMalloc((void**)&chosen_reaction_d, sizeof(unsigned int));
+    unsigned int *candidate_reactions;
+    cudaMalloc((void**)&candidate_reactions, crn_h.num_reactions * sizeof(unsigned int));
 
     unsigned int *total_triggered_threshs_d;
     cudaMalloc((void**)&total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int));
@@ -583,9 +630,8 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
         unsigned int chosen_reaction = UINT_MAX;
 
         // Choose a reaction
-        cudaMemset(chosen_reaction_d, UINT_MAX, sizeof(unsigned int));
-        choose_reaction_kernel<<<dimGrid, dimBlock>>>(chosen_reaction_d, propensity_inclusive_sums, propensity_sum, r, crn_h.num_reactions);
-        cudaMemcpy(&chosen_reaction, chosen_reaction_d, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        find_reaction_candidates<<<dimGrid, dimBlock>>>(candidate_reactions, propensity_inclusive_sums, propensity_sum, r, crn_h.num_reactions);
+        chosen_reaction = choose_reaction(candidate_reactions, crn_h.num_reactions);
 
         if (chosen_reaction >= crn_h.num_reactions) {
             printf("Error: invalid reactions has been chosen.\n");
@@ -706,7 +752,7 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
     cudaFree(propensity_inclusive_sums);
     cudaFree(propensity_block_sums);
 
-    cudaFree(chosen_reaction_d);
+    cudaFree(candidate_reactions);
 
     cudaFree(chem_arrays_d.chem_amounts);
     cudaFree(chem_arrays_d.thresh_amounts);
