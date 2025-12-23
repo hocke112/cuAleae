@@ -302,7 +302,7 @@ int main (int argc, char *argv[]) {
         out_stats.time_elapsed = 0;
 
         const auto start_trial = std::chrono::high_resolution_clock::now();
-        simulation_master(post_trial_chem_amounts, total_triggered_threshs, &err, crn_h, sim_params, &out_stats, i);
+        err = simulation_master(post_trial_chem_amounts, total_triggered_threshs, crn_h, sim_params, &out_stats, i);
 
         for (unsigned int k = 0; k < crn_h.num_chems && err == THRESH_CODE_ERR; ++k) {
             if (crn_h.chem_arrays.thresh_types[i] > THRESH_N || crn_h.chem_arrays.thresh_types[i] < THRESH_LT) {

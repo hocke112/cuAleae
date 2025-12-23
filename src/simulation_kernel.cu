@@ -458,9 +458,11 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
  *
  * @params: Way too many to list. Just look at the function.
 */
-extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h, simulation_err_t *err,
+extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h,
                                         crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
                                         unsigned int trial_num) {
+    simulation_err_t ret_err = SIMULATION_SUCCESS;
+
     chem_arr_t chem_arrays_d;
     field_t reactants_d;
     field_t products_d;
@@ -587,7 +589,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
 
         if (chosen_reaction >= crn_h.num_reactions) {
             printf("Error: invalid reactions has been chosen.\n");
-            *err = INVALID_REACT_CHOSEN;
+            ret_err = INVALID_REACT_CHOSEN;
             break;
         }
 
@@ -614,7 +616,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
 
         if (start_bound_r >= end_bound_r) {
             printf("Error: in reactant bound array, start bound is greater than end bound\n");
-            *err = REAC_BOUND_ARR_ERR;
+            ret_err = REAC_BOUND_ARR_ERR;
             break;
         }
 
@@ -628,7 +630,7 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
 
         if (start_bound_p >= end_bound_p) {
             printf("Error: in product bound array, start bound is greater than end bound\n");
-            *err = PROD_BOUND_ARR_ERR;
+            ret_err = PROD_BOUND_ARR_ERR;
             break;
         }
 
@@ -657,9 +659,9 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
 
         if (!within_threshold) {
             count_triggered_thresholds<<<dimGrid_thresh, dimBlock_thresh>>>(total_triggered_threshs_d, is_thresh_type_invalid, chem_arrays_d, crn_h.num_chems);
-            cudaMemcpy(err, is_thresh_type_invalid, sizeof(int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&ret_err, is_thresh_type_invalid, sizeof(int), cudaMemcpyDeviceToHost);
 
-            if (*err) {
+            if (ret_err) {
                 printf("Error: invalid threshold code. Please check your .in file for errors.");
                 break;
             }
@@ -721,4 +723,6 @@ extern "C" void simulation_master(unsigned int *post_trial_chem_amounts_h, unsig
     cudaFree(products_d.end_bounds);
 
     cudaFree(rates_d);
+
+    return ret_err;
 }
