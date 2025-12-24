@@ -20,15 +20,15 @@
  * @return the result of n choose r
  *
 */
-__device__ int nCr(int n, int r){
-    double sum = 1;
+__device__ float nCr(unsigned int n, unsigned int r){
+    float sum = 1.0f;
 
     // Calculate the n choose r using the binomial coefficient formula
-    for (int i = 1; i <= r; i++){
+    for (unsigned int i = 1; i <= r; i++){
         sum = sum * (n - r + i) / i;
     }
 
-    return (int) sum;
+    return sum;
 }
 
 /*
@@ -57,7 +57,7 @@ __global__ void calculate_propensity_kernel(float* propensities, chem_arr_t chem
             unsigned int c = reactants.deltas[it];
 
             if (x < c) {
-                local_propensity = 0;
+                local_propensity = 0.0f;
                 break;
             } else {
                 local_propensity *= nCr(x, c);
@@ -91,7 +91,7 @@ __global__ void prescanArrayKernel(float *out_array, float *in_array, float *blo
 	if (in_data_index0 < num_elements)										// Load in input data to shared memory
 		scan_array[t] = in_array[in_data_index0];
 	else
-		scan_array[t] = 0.0;
+		scan_array[t] = 0.0f;
 
 	if (in_data_index1 < num_elements)
 		scan_array[blockDim.x + t] = in_array[in_data_index1];
@@ -110,6 +110,10 @@ __global__ void prescanArrayKernel(float *out_array, float *in_array, float *blo
 		__syncthreads();
 	}
 
+    if (t == 0) {															// Store block sums
+		block_sums[blockIdx.x] = scan_array[2 * blockDim.x - 1];
+	}
+
 	stride = BLOCK_SIZE/2;
 	while (stride > 0) {
 		unsigned int index = (t+1)*stride*2 - 1;
@@ -120,19 +124,11 @@ __global__ void prescanArrayKernel(float *out_array, float *in_array, float *blo
 		__syncthreads();
 	}
 
-	if (t == 0) {															// Store block sums
-		block_sums[blockIdx.x] = scan_array[2 * blockDim.x - 1];
-	}
-
 	if (in_data_index0 < num_elements)										// Store data from shared memory to output
 		out_array[in_data_index0] = scan_array[t];
-	else
-		out_array[in_data_index0] = 0.0f;
 
 	if (in_data_index1 < num_elements)
 		out_array[in_data_index1] = scan_array[blockDim.x + t];
-	else
-		out_array[in_data_index1] = 0.0f;
 }
 
 /*
@@ -156,7 +152,7 @@ __global__ void scanBlockSumsKernel(float *scanned_block_sums, float *block_sums
 	if (in_data_index0 < num_elements)										// Load in unscanned block sums to shared memory
 		scan_array[t] = block_sums[in_data_index0];
 	else
-		scan_array[t] = 0;
+		scan_array[t] = 0.0f;
 
 	if (in_data_index1 < num_elements)
 		scan_array[blockDim.x + t] = block_sums[in_data_index1];
@@ -175,6 +171,10 @@ __global__ void scanBlockSumsKernel(float *scanned_block_sums, float *block_sums
 		__syncthreads();
 	}
 
+    if (t == 0) {															// Store scannned block sums
+		scanned_block_sums[blockIdx.x] = scan_array[2 * blockDim.x - 1];
+	}
+
 	stride = BLOCK_SIZE/2;
 	while (stride > 0) {
 		unsigned int index = (t+1)*stride*2 - 1;
@@ -183,10 +183,6 @@ __global__ void scanBlockSumsKernel(float *scanned_block_sums, float *block_sums
 
 		stride = stride/2;
 		__syncthreads();
-	}
-
-	if (t == 0) {															// Store scannned block sums
-		scanned_block_sums[blockIdx.x] = scan_array[2 * blockDim.x - 1];
 	}
 
 	if (in_data_index0 < num_elements)										// Store data from shared memory to output
@@ -275,7 +271,8 @@ __global__ void choose_reaction_kernel(unsigned int *candidate_reactions, unsign
 			partial_min[t] = min(partial_min[t], partial_min[t + stride]);
 	}
 
-	candidate_reactions[blockIdx.x] = partial_min[0];									// Write back to global memory
+    if (threadIdx.x == 0)
+	    candidate_reactions[blockIdx.x] = partial_min[0];									// Write back to global memory
 }
 
 /*
@@ -431,8 +428,8 @@ __global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs
  * @param block_sums: an array containing prefix sum of each block
  * @param num_elements: the count of all elements in block_sums
 */
-void scanBlockSumArray(float *block_sums, int num_elements) {
-	unsigned int num_blocks = (unsigned int) ceil((float) num_elements/(2*BLOCK_SIZE));
+void scanBlockSumArray(float *block_sums, unsigned int num_elements) {
+	unsigned int num_blocks = (unsigned int) ceil((double) num_elements / (double) (2*BLOCK_SIZE));
 
 	float *scanned_block_sums;										        // Allocate space for scanned block sums
 	cudaMalloc((void**)&scanned_block_sums, num_blocks * sizeof(float));
@@ -444,7 +441,7 @@ void scanBlockSumArray(float *block_sums, int num_elements) {
 
 	if (num_blocks > 1) {													// Recursively call function to scan the scanned block sums
 		scanBlockSumArray(scanned_block_sums, num_blocks);
-		dim3 newDimBlock = dim3(2 * BLOCK_SIZE);
+		dim3 newDimBlock = dim3(2 * BLOCK_SIZE, 1, 1);
 		addScanBlocksKernel<<<dimGrid, newDimBlock>>>(block_sums, scanned_block_sums, num_elements, num_blocks);
 	}
 
@@ -454,28 +451,32 @@ void scanBlockSumArray(float *block_sums, int num_elements) {
 /*
  * A function to find the inclusive sum of an arbitrarily-sized input array.
  *
+ * @param sum: a pointer to a floating-point variable in the calling function
  * @param out_array: an output array of partial sums
  * @param in_array: an input array of floats to find the prefix sum
  * @param block_sums: the prefix sum of each block
  * @param num_elements: the count of all elements in the output and input arrays
 */
-void prescanArray(float *out_array, float *in_array, float *block_sums, int num_elements) {
+void prescanArray(float *sum, float *out_array, float *in_array, float *block_sums, unsigned int num_elements) {
     //all pointers are to pre-allocated device memory regions
 
-	unsigned int num_blocks = (unsigned int) num_elements/(2*BLOCK_SIZE);
+	unsigned int num_blocks = (unsigned int) ceil((double) num_elements / (double) (2*BLOCK_SIZE));
 
 	dim3 dimGrid = dim3(num_blocks, 1, 1);
     dim3 dimBlock = dim3(BLOCK_SIZE, 1, 1);
 
 	prescanArrayKernel<<<dimGrid, dimBlock>>>(out_array, in_array, block_sums, num_elements);
 
-	if (num_blocks <= 1)													// To make the runtime of one-block array a bit faster
+	if (num_blocks <= 1) {													// To make the runtime of one-block array a bit faster
+        cudaMemcpy(sum, &out_array[num_elements - 1], sizeof(float), cudaMemcpyDeviceToHost);
 		return;
+    }
 
 	scanBlockSumArray(block_sums, num_blocks);
 
-	dim3 newDimBlock = dim3(2 * BLOCK_SIZE);
+	dim3 newDimBlock = dim3(2 * BLOCK_SIZE, 1, 1);
 	addScanBlocksKernel<<<dimGrid, newDimBlock>>>(out_array, block_sums, num_elements, num_blocks);
+    cudaMemcpy(sum, &out_array[num_elements - 1], sizeof(float), cudaMemcpyDeviceToHost);
 }
 
 /*
@@ -486,7 +487,7 @@ void prescanArray(float *out_array, float *in_array, float *block_sums, int num_
  * @return the chosen reaction
 */
 unsigned int choose_reaction(unsigned int *candidate_reactions, unsigned int num_reactions) {
-    if (num_reactions <= 0) {
+    if (num_reactions <= 1) {
         unsigned int chosen_reaction = 0;
         cudaMemcpy(&chosen_reaction, &candidate_reactions[0], sizeof(unsigned int), cudaMemcpyDeviceToHost);
         return chosen_reaction;
@@ -600,12 +601,10 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
         calculate_propensity_kernel<<<dimGrid, dimBlock>>>(propensities, chem_arrays_d, reactants_d, rates_d, crn_h.num_reactions);
 
         // Find propensity inclusive prefix sums
+        float propensity_sum = FLT_MAX;
         cudaMemset(propensity_inclusive_sums, 0.0, padded_num_reactions * sizeof(float));
         cudaMemset(propensity_block_sums, 0.0, crn_h.num_reactions * sizeof(float));
-        prescanArray(propensity_inclusive_sums, propensities, propensity_block_sums, padded_num_reactions);
-
-        float propensity_sum = FLT_MAX;
-        cudaMemcpy(&propensity_sum, &propensity_inclusive_sums[crn_h.num_reactions - 1], sizeof(float), cudaMemcpyDeviceToHost);
+        prescanArray(&propensity_sum, propensity_inclusive_sums, propensities, propensity_block_sums, padded_num_reactions);
 
         if (propensity_sum <= 0.0f) {
             if (sim_params.verbosity_bit_fields & PRINT_TERMINAL) {
@@ -625,14 +624,13 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
         }
 
         float r = rand()/(float)RAND_MAX;
-        // unsigned int chosen_reaction = UINT_MAX;
 
         // Choose a reaction
         find_reaction_candidates<<<dimGrid, dimBlock>>>(candidate_reactions, propensity_inclusive_sums, propensity_sum, r, crn_h.num_reactions);
         unsigned int chosen_reaction = choose_reaction(candidate_reactions, crn_h.num_reactions);
 
         if (chosen_reaction >= crn_h.num_reactions) {
-            printf("Error: invalid reactions has been chosen.\n");
+            printf("Error: invalid reaction %u has been chosen.\n", chosen_reaction);
             ret_err = INVALID_REACT_CHOSEN;
             break;
         }
