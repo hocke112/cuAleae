@@ -6,6 +6,12 @@ A modern C++/CUDA C hybrid port (or rewrite) of Aleae, a chemical reaction netwo
 
 This was written with pernission from Marc Riedel.
 
+## Contributions
+* Jeremiah Hockett (hocke112): main developer and de-facto project lead
+* Chiemeka Nwakama: assisted in developing C++ part
+* Aditya Parida: verification testing, assisted in developing CUDA C part
+* Cheo Cedillo: performance benchmarking, finding bug in code
+
 ## Motivation
 
 Aleae is rather slow and is known to have memory-related crashes. Although cuAleae was written to address the former, reliability was also a concern. A different CRN simulator, [MARlea](https://github.com/nadaso8/MARlea/), achieves a speedup via CPU parallelism across trials while ensuring reliability.
@@ -40,3 +46,6 @@ The first two are the input files to cuAleae, while the rest are explained below
 
 ## Compilation
 To compile the source code, simply type `make build` to compile. Alternatively, you can type `make debug` for compile for debugging.
+
+## Licensing
+Files contained in the sample_files folder were created by Marc Riedel, and as such, they are not covered by the GPL license. All other files, i.e. the source code, are covered by said license.
