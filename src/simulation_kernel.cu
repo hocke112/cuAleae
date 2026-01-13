@@ -1,5 +1,20 @@
 /*
- * Prefix sum code was copied from Jeremiah's implementation of MP4-2
+ * Copyright (c) 2025-2026 Jeremiah Hockett, Chiemeka Nwakama, Aditya Parida, and Cheo Cedillo
+ *
+ * This file is part of cuAleae.
+ *
+ * cuAleae is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+ *
+ * cuAleae is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with cuAleae. If not, see <https://www.gnu.org/licenses/>.
+ *
+ *
+ * This file contains the CUDA C part of cuAleae. Implementation was based on aleae_stoch.cc of Aleae's source code.
+ *
+ * Note: Jeremiah's implementation of MP4-1 and MP4-2 for EE 5351 was used for this file.
 */
 
 #include "device_data_structures.h"
