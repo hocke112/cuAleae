@@ -73,14 +73,11 @@ void trim_tokens(std::vector<std::string> &tokens) {
  * @char delim: a delimiting character to split the string
 */
 void split_by(std::vector<std::string> &tokens, const std::string &s, char delim) {
-    unsigned int num_splits = 0;
-
     unsigned int last_idx = 0;
     for (int i = 0; i < s.length(); ++i) {
         if (s[i] == delim) {
             tokens.emplace_back(s.substr(last_idx, i - last_idx));
             last_idx = i + 1;
-            num_splits++;
         }
     }
 
