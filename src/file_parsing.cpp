@@ -72,13 +72,14 @@ int parse_in_input_file(const std::string &in_filename, std::map<std::string, ch
     while (getline(in_file, temp)) {
         trim(temp);
 
-        unsigned int num_splits = split_by(line_tokens, temp, ' ');
+        split_by(line_tokens, temp, ' ');
 
-        if (num_splits < 2 || num_splits > 3) {
+        unsigned int num_tokens = line_tokens.size();
+        if (num_tokens < NUM_INIT_ELEMS - 1 || num_tokens > NUM_INIT_ELEMS) {
             print_error_msg_at_line(in_filename, lineno, "Poor formatting of line.");
             return 1;
-        } else if (num_splits == 2) {
-            line_tokens[THRESH_AMOUNT] = "0";
+        } else if (num_tokens == NUM_INIT_ELEMS - 1) {
+            line_tokens.emplace_back("0");
         }
 
         trim_tokens(line_tokens);
@@ -117,6 +118,7 @@ int parse_in_input_file(const std::string &in_filename, std::map<std::string, ch
                 print_error_msg_at_line(in_filename, lineno, "Invalid threshhold amount for given threshold type.");
                 return 1;
             }
+
             crn.thresholds.emplace_back(thresh_t(thresh_type, thresh_amount));
         } catch (...) {
             print_error_msg_at_line(in_filename, lineno, "Threshold amount must be a non-negative integer.");
@@ -212,10 +214,9 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
     std::string temp("");
     while (getline(r_file, temp)) {
         trim(temp);
+        split_by(reaction_tokens, temp, ':');
 
-        unsigned int num_splits = split_by(reaction_tokens, temp, ':');
-
-        if (num_splits != 2) {
+        if (reaction_tokens.size() != NUM_FIELDS) {
             print_error_msg_at_line(r_filename, reaction_no, "Missing field(s) in reaction.");
             return 1;
         }
