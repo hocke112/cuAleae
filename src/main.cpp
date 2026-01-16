@@ -34,21 +34,24 @@ int print_crn_contents(const CRN &crn) {
     std::cout << "Initial Quantities and Thresholds\n";
     for (unsigned int i = 0; i < crn.chems.size(); ++i) {
         std::cout << crn.chems[i].name << " " << crn.chems[i].amount;
-        std::cout << " ";
 
         threshold_types t = crn.thresholds[i].type;
         switch (t) {
             case THRESH_LT:
-                std::cout << "(< ";
+                std::cout << " (< ";
+                std::cout << crn.thresholds[i].amount << ")";
                 break;
             case THRESH_LE:
-                std::cout << "(<= ";
+                std::cout << " (<= ";
+                std::cout << crn.thresholds[i].amount << ")";
                 break;
             case THRESH_GE:
-                std::cout << "(>= ";
+                std::cout << " (>= ";
+                std::cout << crn.thresholds[i].amount << ")";
                 break;
             case THRESH_GT:
-                std::cout << "(> ";
+                std::cout << " (> ";
+                std::cout << crn.thresholds[i].amount << ")";
                 break;
             case THRESH_N:
                 break;
@@ -57,7 +60,6 @@ int print_crn_contents(const CRN &crn) {
                 return 1;
         }
 
-        std::cout << crn.thresholds[i].amount << ")";
         if (i  < crn.chems.size() - 1) std::cout << ", ";
     }
 
