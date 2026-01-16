@@ -71,9 +71,8 @@ void trim_tokens(std::vector<std::string> &tokens) {
  * @param tokens: an empty list of tokens that will be filled
  * @param s: an input string to get tokens from
  * @char delim: a delimiting character to split the string
- * @return num_split: the number of splits
 */
-unsigned int split_by(std::vector<std::string> &tokens, const std::string &s, char delim) {
+void split_by(std::vector<std::string> &tokens, const std::string &s, char delim) {
     unsigned int num_splits = 0;
 
     unsigned int last_idx = 0;
@@ -86,6 +85,4 @@ unsigned int split_by(std::vector<std::string> &tokens, const std::string &s, ch
     }
 
     tokens.emplace_back(s.substr(last_idx, s.length() - last_idx));
-
-    return num_splits;
 }
