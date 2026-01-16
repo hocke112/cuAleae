@@ -73,6 +73,8 @@ int parse_in_input_file(const std::string &in_filename, std::map<std::string, ch
         trim(temp);
 
         split_by(line_tokens, temp, ' ');
+        std::vector<std::string>::iterator it = std::remove_if(line_tokens.begin(), line_tokens.end(), [](const std::string &s) { return s.empty(); });
+        line_tokens.erase(it, line_tokens.end());
 
         unsigned int num_tokens = line_tokens.size();
         if (num_tokens < NUM_INIT_ELEMS - 1 || num_tokens > NUM_INIT_ELEMS) {
@@ -145,8 +147,8 @@ int parse_in_input_file(const std::string &in_filename, std::map<std::string, ch
 */
 int fill_reaction_field(std::unique_ptr<reaction_t> &reaction_ptr, const std::map<std::string, chem_id_t> &chem_str_to_id, const std::string &token,
                             unsigned int field, const std::string &r_filename, unsigned int reaction_no) {
-    static std::regex term_re("([A-Za-z'][A-Za-z0-9.'_]*) ([1-9][0-9]*)");
-    static std::regex field_re("^([^: ]+ [0-9]+[ ]*)+$");
+    static std::regex term_re("([A-Za-z'][A-Za-z0-9.'_]*)[ ]+([1-9][0-9]*)");
+    static std::regex field_re("^([^: ]+[ ]+[0-9]+[ ]*)+$");
 
     std::smatch sm;
     if (!std::regex_match(token, sm, field_re)) {
@@ -205,7 +207,7 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
         return 1;
     }
 
-    std::regex field_re("^([^: ]+ [0-9]+[ ]*)+$");
+    std::regex field_re("^([^: ]+[ ]+[0-9]+[ ]*)+$");
 
     unsigned int reaction_no = 0;
     std::vector<std::string> reaction_tokens;
