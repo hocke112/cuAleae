@@ -21,6 +21,7 @@
 #include <cctype>
 
 #include "file_parsing.hpp"
+#include "token_manip.hpp"
 
 #define REACTANT_FIELD 0
 #define PRODUCT_FIELD 1
@@ -32,77 +33,6 @@
 #define THRESH_TYPE 2
 #define THRESH_AMOUNT 3
 #define NUM_INIT_ELEMS 4
-
-/*
- * A helper function to remove whitespace at beginning of a string.
- * @param s: a string to be trimmed
-*/
-void trim_left(std::string &s) {
-    if (s.length() < 1)
-        return;
-
-    unsigned int i = 0;
-    while (i <= s.length() && std::isspace(s[i])) {
-        ++i;
-    }
-
-    s.erase(0, i);
-}
-
-/*
- * A helper function to remove whitespace at end of a string.
- * @param s: a string to be trimmed
-*/
-void trim_right(std::string &s) {
-    if (s.length() < 1)
-        return;
-
-    unsigned int i = s.length() - 1;
-    while (i > 0 && std::isspace(s[i])) {
-        --i;
-    }
-
-    if (s[i] != ' ')
-        ++i;
-
-    s.erase(i, s.length());
-}
-
-void trim(std::string &s) {
-    trim_left(s);
-    trim_right(s);
-}
-
-void trim_tokens(std::vector<std::string> &tokens) {
-    for (unsigned int i = 0; i < tokens.size(); ++i) {
-        trim(tokens[i]);
-    }
-}
-
-/*
- * A helper function to split a string into a list of tokens.
- *
- * @param tokens: an empty list of tokens that will be filled
- * @param s: an input string to get tokens from
- * @char delim: a delimiting character to split the string
- * @return num_split: the number of splits
-*/
-unsigned int split_by(std::vector<std::string> &tokens, const std::string &s, char delim) {
-    unsigned int num_splits = 0;
-
-    unsigned int last_idx = 0;
-    for (int i = 0; i < s.length(); ++i) {
-        if (s[i] == delim) {
-            tokens.emplace_back(s.substr(last_idx, i - last_idx));
-            last_idx = i + 1;
-            num_splits++;
-        }
-    }
-
-    tokens.emplace_back(s.substr(last_idx, s.length() - last_idx));
-
-    return num_splits;
-}
 
 void print_error_msg_at_line(const std::string filename, unsigned int line_no, const std::string msg) {
     std::cerr << "In " << filename << std::endl;

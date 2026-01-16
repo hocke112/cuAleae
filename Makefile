@@ -12,8 +12,8 @@ NVCC_INC_FLAGS = -arch=sm_75 \
 		-gencode=arch=compute_120,code=sm_120 \
 		-gencode=arch=compute_120,code=compute_120
 LD_FLAGS = -lcudart -L/usr/local/cuda/lib64
-CPP_HEADER_FILES = inc/misc_def.h inc/host_data_structures.hpp inc/device_data_structures.h inc/file_parsing.hpp inc/simulation.h
-CPP_SOURCE_FILES = src/main.cpp src/file_parsing.cpp
+CPP_HEADER_FILES = inc/misc_def.h inc/host_data_structures.hpp inc/device_data_structures.h inc/file_parsing.hpp inc/token_manip.hpp inc/simulation.h
+CPP_SOURCE_FILES = src/main.cpp src/file_parsing.cpp src/token_manip.cpp
 EXE = cuAleae
 
 profile: ${CPP_HEADER_FILES}
