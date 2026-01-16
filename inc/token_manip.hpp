@@ -26,6 +26,6 @@ void trim_right(std::string &s);
 void trim(std::string &s);
 void trim_tokens(std::vector<std::string> &tokens);
 
-unsigned int split_by(std::vector<std::string> &tokens, const std::string &s, char delim);
+void split_by(std::vector<std::string> &tokens, const std::string &s, char delim);
 
 #endif
