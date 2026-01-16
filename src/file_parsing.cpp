@@ -85,6 +85,12 @@ unsigned int split_by(std::vector<std::string> &tokens, const std::string &s, ch
     return num_splits;
 }
 
+void print_error_msg_at_line(const std::string filename, unsigned int line_no, const std::string msg) {
+    std::cerr << "In " << filename << std::endl;
+    std::cerr << "Error at line " << line_no + 1 << std::endl;
+    std::cerr << msg << std::endl;
+}
+
 /*
  * A function to parse a .in input file containing the initial state of the CRN.
  *
@@ -217,9 +223,7 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
         unsigned int num_splits = split_by(reaction_tokens, temp, ':');
 
         if (num_splits != 2) {
-            std::cerr << "In " << r_filename << std::endl;
-            std::cerr << "Syntax error at line " << reaction_no + 1 << std::endl;
-            std::cerr << "Missing field(s) in reaction." << std::endl;
+            print_error_msg_at_line(r_filename, reaction_no, "Missing field(s) in reaction.");
             return 1;
         }
 
@@ -229,35 +233,27 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
         }
 
         if (reaction_tokens[RATE_FIELD].length() <= 0) {
-            std::cerr << "In " << r_filename << std::endl;
-            std::cerr << "Error at line " << reaction_no + 1 << std::endl;
-            std::cerr << "Reaction rate is missing." << std::endl;
+            print_error_msg_at_line(r_filename, reaction_no, "Reaction rate is missing.");
             return 1;
         }
 
         try {
             float new_rate = std::stof(reaction_tokens[RATE_FIELD]);
             if (new_rate <= 0.0f) {
-                std::cerr << "In " << r_filename << std::endl;
-                std::cerr << "Error at line " << reaction_no + 1 << std::endl;
-                std::cerr << "Reaction rate must be a positive non-zero value." << std::endl;
+                print_error_msg_at_line(r_filename, reaction_no, "Reaction rate must be a positive non-zero value.");
                 return 1;
             }
 
             crn.reactions.emplace_back(std::make_unique<reaction_t>());
             crn.reactions[reaction_no]->rate = new_rate;
         } catch (...) {
-            std::cerr << "In " << r_filename << std::endl;
-            std::cerr << "Error at line " << reaction_no + 1 << std::endl;
-            std::cerr << "Reaction rate must be a positive non-zero value." << std::endl;
+            print_error_msg_at_line(r_filename, reaction_no, "Reaction rate must be a positive non-zero value.");
             return 1;
         }
 
         std::smatch sm;
         if (!std::regex_match(reaction_tokens[REACTANT_FIELD], sm, field_re)) {
-            std::cerr << "In " << r_filename << std::endl;
-            std::cerr << "Error at line " << reaction_no + 1 << std::endl;
-            std::cerr << "Term in reactant side of reaction is formatted incorrectly." << std::endl;
+            print_error_msg_at_line(r_filename, reaction_no, "Term in reactant side of reaction is formatted incorrectly.");
             return 1;
         }
 
@@ -269,7 +265,7 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
             std::string coeff_st = std::regex_replace(cur_term, term_re, "$2");
 
             if (!chem_str_to_id.count(chem_str)) {
-                std::cerr << "Missing chemical at line " << reaction_no + 1 << std::endl;
+                print_error_msg_at_line(r_filename, reaction_no, chem_str + " is missing in .in file.");
                 return 1;
             }
 
@@ -278,9 +274,7 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
         }
 
         if (!std::regex_match(reaction_tokens[PRODUCT_FIELD], sm, field_re)) {
-            std::cerr << "In " << r_filename << std::endl;
-            std::cerr << "Error at line " << reaction_no + 1 << std::endl;
-            std::cerr << "Term in product side of reaction is formatted incorrectly." << std::endl;
+            print_error_msg_at_line(r_filename, reaction_no, "Term in product side of reaction is formatted incorrectly.");
             return 1;
         }
 
@@ -292,8 +286,7 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
             std::string coeff_st = std::regex_replace(cur_term, term_re, "$2");
 
             if (!chem_str_to_id.count(chem_str)) {
-                std::cerr << "In " << r_filename << std::endl;
-                std::cerr << "Missing chemical at line " << reaction_no + 1 << std::endl;
+                print_error_msg_at_line(r_filename, reaction_no, chem_str + " is missing in .in file.");
                 return 1;
             }
 
