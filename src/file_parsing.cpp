@@ -207,8 +207,6 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
         return 1;
     }
 
-    std::regex field_re("^([^: ]+[ ]+[0-9]+[ ]*)+$");
-
     unsigned int reaction_no = 0;
     std::vector<std::string> reaction_tokens;
     reaction_tokens.reserve(NUM_FIELDS);
@@ -241,12 +239,6 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
             crn.reactions[reaction_no]->rate = new_rate;
         } catch (...) {
             print_error_msg_at_line(r_filename, reaction_no, "Reaction rate must be a positive non-zero value.");
-            return 1;
-        }
-
-        std::smatch sm;
-        if (!std::regex_match(reaction_tokens[REACTANT_FIELD], sm, field_re)) {
-            print_error_msg_at_line(r_filename, reaction_no, "Term in reactant side of reaction is formatted incorrectly.");
             return 1;
         }
 
