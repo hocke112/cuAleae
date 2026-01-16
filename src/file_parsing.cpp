@@ -18,12 +18,20 @@
 #include <iostream>
 #include <fstream>
 #include <regex>
+#include <cctype>
 
 #include "file_parsing.hpp"
 
 #define REACTANT_FIELD 0
 #define PRODUCT_FIELD 1
 #define RATE_FIELD 2
+#define NUM_FIELDS 3
+
+#define CHEM_NAME 0
+#define CHEM_AMOUNT 1
+#define THRESH_TYPE 2
+#define THRESH_AMOUNT 3
+#define NUM_INIT_ELEMS 4
 
 /*
  * A helper function to remove whitespace at beginning of a string.
@@ -34,7 +42,7 @@ void trim_left(std::string &s) {
         return;
 
     unsigned int i = 0;
-    while (i <= s.length() && s[i] == ' ') {
+    while (i <= s.length() && std::isspace(s[i])) {
         ++i;
     }
 
@@ -50,7 +58,7 @@ void trim_right(std::string &s) {
         return;
 
     unsigned int i = s.length() - 1;
-    while (i > 0 && s[i] == ' ') {
+    while (i > 0 && std::isspace(s[i])) {
         --i;
     }
 
@@ -58,6 +66,17 @@ void trim_right(std::string &s) {
         ++i;
 
     s.erase(i, s.length());
+}
+
+void trim(std::string &s) {
+    trim_left(s);
+    trim_right(s);
+}
+
+void trim_tokens(std::vector<std::string> &tokens) {
+    for (unsigned int i = 0; i < tokens.size(); ++i) {
+        trim(tokens[i]);
+    }
 }
 
 /*
@@ -114,65 +133,66 @@ int parse_in_input_file(const std::string &in_filename, std::map<std::string, ch
         return 1;
     }
 
-    std::regex init_line_re("([A-Za-z'][A-Za-z0-9.'_]*)[ ]+([0-9]+)[ ]+(LE|LT|GE|GT|N)([ ]+([0-9]*))*");
-    std::regex cr_char_re("\\r");
-
     std::string temp("");
-    std::string chem_name("");
-    std::string chem_amount_str("");
-    std::string thresh_type_str("");
-    std::string thresh_amount_str("");
+
+    std::vector<std::string> line_tokens;
+    line_tokens.reserve(NUM_INIT_ELEMS);
 
     unsigned int lineno = 0;
     while (getline(in_file, temp)) {
-        temp = std::regex_replace(temp, cr_char_re, "");
+        trim(temp);
 
-        chem_name = std::regex_replace(temp, init_line_re, "$1");
-        chem_amount_str = std::regex_replace(temp, init_line_re, "$2");
-        thresh_type_str = std::regex_replace(temp, init_line_re, "$3");
-        thresh_amount_str = std::regex_replace(temp, init_line_re, "$5");
+        unsigned int num_splits = split_by(line_tokens, temp, ' ');
 
-        if (chem_name == temp || chem_amount_str == temp || thresh_type_str == temp) {
-            std::cerr << "In " << in_filename << std::endl;
-            std::cerr << "Syntax error at line " << lineno + 1 << std::endl;
+        if (num_splits < 2 || num_splits > 3) {
+            print_error_msg_at_line(in_filename, lineno, "Poor formatting of line.");
             return 1;
-        } else if (thresh_amount_str == "") {
-            thresh_amount_str = "0";
+        } else if (num_splits == 2) {
+            line_tokens[THRESH_AMOUNT] = "0";
         }
 
-        unsigned int chem_amount = (unsigned int) std::stoul(chem_amount_str);
+        trim_tokens(line_tokens);
+
+        if (chem_str_to_id.count(line_tokens[CHEM_NAME]) > 0) {
+            print_error_msg_at_line(in_filename, lineno, "Duplicate chemical " + line_tokens[0] + ".");
+            return 1;
+        } else {
+            chem_str_to_id.insert(std::pair(line_tokens[CHEM_NAME], lineno));
+        }
+
+        try {
+            unsigned int chem_amount = (unsigned int) std::stoul(line_tokens[CHEM_AMOUNT]);
+            crn.chems.emplace_back(chem_t(line_tokens[CHEM_NAME], chem_amount));
+        } catch (...) {
+            print_error_msg_at_line(in_filename, lineno, "Chemical amount must be a positive non-zero value.");
+        }
 
         threshold_types thresh_type = THRESH_N;
 
-        if (thresh_type_str == "LT") {
+        if (line_tokens[THRESH_TYPE] == "LT") {
             thresh_type = THRESH_LT;
-        } else if (thresh_type_str == "LE") {
+        } else if (line_tokens[THRESH_TYPE] == "LE") {
             thresh_type = THRESH_LE;
-        } else if (thresh_type_str == "GE") {
+        } else if (line_tokens[THRESH_TYPE] == "GE") {
             thresh_type = THRESH_GE;
-        } else if (thresh_type_str == "GT") {
+        } else if (line_tokens[THRESH_TYPE] == "GT") {
             thresh_type = THRESH_GT;
+        } else if (line_tokens[THRESH_TYPE] != "N") {
+            print_error_msg_at_line(in_filename, lineno, "Invalid threshold type.");
         }
 
-        unsigned int thresh_amount = (unsigned int) std::stoul(thresh_amount_str);
-
-        if (thresh_type == THRESH_N && thresh_amount > 0 || thresh_type < THRESH_N && thresh_amount == 0) {
-            std::cerr << "In " << in_filename << std::endl;
-            std::cerr << "Syntax error at line " << lineno + 1 << std::endl;
-            return 1;
+        try {
+            unsigned int thresh_amount = (unsigned int) std::stoul(line_tokens[THRESH_AMOUNT]);
+            if (thresh_type == THRESH_N && thresh_amount > 0 || thresh_type < THRESH_N && thresh_amount == 0) {
+                print_error_msg_at_line(in_filename, lineno, "Invalid threshhold amount for given threshold type.");
+                return 1;
+            }
+            crn.thresholds.emplace_back(thresh_t(thresh_type, thresh_amount));
+        } catch (...) {
+            print_error_msg_at_line(in_filename, lineno, "Threshold amount must be a non-negative integer.");
         }
 
-        if (chem_str_to_id.count(chem_name) > 0) {
-            std::cerr << "In " << in_filename << std::endl;
-            std::cerr << "Duplicate chemical at line " << lineno + 1 << std::endl;
-            return 1;
-        } else {
-            chem_str_to_id.insert(std::pair(chem_name, lineno));
-        }
-
-        crn.chems.emplace_back(chem_t(chem_name, chem_amount));
-        crn.thresholds.emplace_back(thresh_t(thresh_type, thresh_amount));
-
+        line_tokens.clear();
         lineno++;
     }
 
@@ -253,18 +273,15 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
         return 1;
     }
 
-    std::regex term_re("([A-Za-z'][A-Za-z0-9.'_]*) ([1-9][0-9]*)");
     std::regex field_re("^([^: ]+ [0-9]+[ ]*)+$");
-
-    std::regex cr_char_re("\\r");
 
     unsigned int reaction_no = 0;
     std::vector<std::string> reaction_tokens;
-    reaction_tokens.reserve(3);
+    reaction_tokens.reserve(NUM_FIELDS);
 
     std::string temp("");
     while (getline(r_file, temp)) {
-        temp = std::regex_replace(temp, cr_char_re, "");
+        trim(temp);
 
         unsigned int num_splits = split_by(reaction_tokens, temp, ':');
 
@@ -273,10 +290,7 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
             return 1;
         }
 
-        for (unsigned int i = 0; i < reaction_tokens.size(); ++i) {
-            trim_left(reaction_tokens[i]);
-            trim_right(reaction_tokens[i]);
-        }
+        trim_tokens(reaction_tokens);
 
         if (reaction_tokens[RATE_FIELD].length() <= 0) {
             print_error_msg_at_line(r_filename, reaction_no, "Reaction rate is missing.");
