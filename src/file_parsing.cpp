@@ -21,6 +21,70 @@
 
 #include "file_parsing.hpp"
 
+#define REACTANT_FIELD 0
+#define PRODUCT_FIELD 1
+#define RATE_FIELD 2
+
+/*
+ * A helper function to remove whitespace at beginning of a string.
+ * @param s: a string to be trimmed
+*/
+void trim_left(std::string &s) {
+    if (s.length() < 1)
+        return;
+
+    unsigned int i = 0;
+    while (i <= s.length() && s[i] == ' ') {
+        ++i;
+    }
+
+    s.erase(0, i);
+}
+
+/*
+ * A helper function to remove whitespace at end of a string.
+ * @param s: a string to be trimmed
+*/
+void trim_right(std::string &s) {
+    if (s.length() < 1)
+        return;
+
+    unsigned int i = s.length() - 1;
+    while (i > 0 && s[i] == ' ') {
+        --i;
+    }
+
+    if (s[i] != ' ')
+        ++i;
+
+    s.erase(i, s.length());
+}
+
+/*
+ * A helper function to split a string into a list of tokens.
+ *
+ * @param tokens: an empty list of tokens that will be filled
+ * @param s: an input string to get tokens from
+ * @char delim: a delimiting character to split the string
+ * @return num_split: the number of splits
+*/
+unsigned int split_by(std::vector<std::string> &tokens, const std::string &s, char delim) {
+    unsigned int num_splits = 0;
+
+    unsigned int last_idx = 0;
+    for (int i = 0; i < s.length(); ++i) {
+        if (s[i] == delim) {
+            tokens.emplace_back(s.substr(last_idx, i - last_idx));
+            last_idx = i + 1;
+            num_splits++;
+        }
+    }
+
+    tokens.emplace_back(s.substr(last_idx, s.length() - last_idx));
+
+    return num_splits;
+}
+
 /*
  * A function to parse a .in input file containing the initial state of the CRN.
  *
@@ -30,12 +94,15 @@
  * @return: 1 of an error has occurred or 0 otherwise
 */
 int parse_in_input_file(const std::string &in_filename, std::map<std::string, chem_id_t> &chem_str_to_id, CRN &crn) {
-    std::ifstream in_file(in_filename);
-    if (in_filename.substr(in_filename.length() - 3, 3) != ".in") {
-        std::cerr << "Error: Input .in file type is invalid for .in file." << std::endl;
+    if (in_filename.length() < 3) {
+        std::cerr << "Error: Input file name " << in_filename << " is invalid." << std::endl;
+        return 1;
+    } else if (in_filename.substr(in_filename.length() - 3, 3) != ".in") {
+        std::cerr << "Error: Input file type of " << in_filename << " is invalid." << std::endl;
         return 1;
     }
 
+    std::ifstream in_file(in_filename);
     if (!in_file.is_open()) {
         std::cerr << "Error: Input .in file failed to be opened" << std::endl;
         return 1;
@@ -116,52 +183,85 @@ int parse_in_input_file(const std::string &in_filename, std::map<std::string, ch
  * @return: 1 of an error has occurred or 0 otherwise
 */
 int parse_r_input_file(const std::string &r_filename, const std::map<std::string, chem_id_t> &chem_str_to_id, CRN &crn) {
-    std::ifstream r_file(r_filename);
-    if (r_filename.substr(r_filename.length() - 2, 2) != ".r") {
-        std::cerr << "Error: Input .r file type is invalid for .in file." << std::endl;
+    if (r_filename.length() < 2) {
+        std::cerr << "Error: Input file name " << r_filename << " is invalid." << std::endl;
+        return 1;
+    } else if (r_filename.substr(r_filename.length() - 2, 2) != ".r") {
+        std::cerr << "Error: Input file type of " << r_filename << " is invalid." << std::endl;
         return 1;
     }
 
+    std::ifstream r_file(r_filename);
     if (!r_file.is_open()) {
         std::cerr << "Error: Input .r file failed to be opened" << std::endl;
         return 1;
     }
 
-    std::regex integer_re("([1-9][0-9]*)");
-    std::regex equation_re("([^:]+)[ ]*:[ ]*([^:]+)[ ]*:[ ]*([0-9]+([.][0-9]+((E|e)[-]{0,1}[0-9]+)*)*)[ \\r]*$");
     std::regex term_re("([A-Za-z'][A-Za-z0-9.'_]*) ([1-9][0-9]*)");
+    std::regex field_re("^([^: ]+ [0-9]+[ ]*)+$");
 
     std::regex cr_char_re("\\r");
 
     unsigned int reaction_no = 0;
-    std::string reactant_str("");
-    std::string product_str("");
-    std::string rate_str("");
+    // std::string reactant_str("");
+    // std::string product_str("");
+    // std::string rate_str("");
     std::string temp("");
+
+    std::vector<std::string> reaction_tokens;
+    reaction_tokens.reserve(3);
+
     while (getline(r_file, temp)) {
         temp = std::regex_replace(temp, cr_char_re, "");
 
-        reactant_str = std::regex_replace(temp, equation_re, "$1");
-        product_str = std::regex_replace(temp, equation_re, "$2");
-        rate_str = std::regex_replace(temp, equation_re, "$3");
+        unsigned int num_splits = split_by(reaction_tokens, temp, ':');
 
-        if (reactant_str == temp || product_str == temp || rate_str == temp) {
+        if (num_splits != 2) {
             std::cerr << "In " << r_filename << std::endl;
             std::cerr << "Syntax error at line " << reaction_no + 1 << std::endl;
+            std::cerr << "Missing field(s) in reaction." << std::endl;
             return 1;
         }
 
-        if (rate_str == "0") {
+        for (unsigned int i = 0; i < reaction_tokens.size(); ++i) {
+            trim_left(reaction_tokens[i]);
+            trim_right(reaction_tokens[i]);
+        }
+
+        if (reaction_tokens[RATE_FIELD].length() <= 0) {
+            std::cerr << "In " << r_filename << std::endl;
+            std::cerr << "Error at line " << reaction_no + 1 << std::endl;
+            std::cerr << "Reaction rate is missing." << std::endl;
+            return 1;
+        }
+
+        try {
+            float new_rate = std::stof(reaction_tokens[RATE_FIELD]);
+            if (new_rate <= 0.0f) {
+                std::cerr << "In " << r_filename << std::endl;
+                std::cerr << "Error at line " << reaction_no + 1 << std::endl;
+                std::cerr << "Reaction rate must be a positive non-zero value." << std::endl;
+                return 1;
+            }
+
+            crn.reactions.emplace_back(std::make_unique<reaction_t>());
+            crn.reactions[reaction_no]->rate = new_rate;
+        } catch (...) {
             std::cerr << "In " << r_filename << std::endl;
             std::cerr << "Error at line " << reaction_no + 1 << std::endl;
             std::cerr << "Reaction rate must be a positive non-zero value." << std::endl;
             return 1;
         }
 
-        crn.reactions.emplace_back(std::make_unique<reaction_t>());
-        crn.reactions[reaction_no]->rate = std::stof(rate_str);
+        std::smatch sm;
+        if (!std::regex_match(reaction_tokens[REACTANT_FIELD], sm, field_re)) {
+            std::cerr << "In " << r_filename << std::endl;
+            std::cerr << "Error at line " << reaction_no + 1 << std::endl;
+            std::cerr << "Term in reactant side of reaction is formatted incorrectly." << std::endl;
+            return 1;
+        }
 
-        for (std::sregex_iterator it_reactant = std::sregex_iterator(reactant_str.begin(), reactant_str.end(), term_re);
+        for (std::sregex_iterator it_reactant = std::sregex_iterator(reaction_tokens[REACTANT_FIELD].begin(), reaction_tokens[REACTANT_FIELD].end(), term_re);
                 it_reactant != std::sregex_iterator(); ++it_reactant){
             std::string cur_term = std::smatch(*it_reactant).str();
 
@@ -177,7 +277,14 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
             crn.reactions[reaction_no]->reactant_deltas.emplace_back((unsigned int) std::stoul(coeff_st));
         }
 
-        for (std::sregex_iterator it_product = std::sregex_iterator(product_str.begin(), product_str.end(), term_re);
+        if (!std::regex_match(reaction_tokens[PRODUCT_FIELD], sm, field_re)) {
+            std::cerr << "In " << r_filename << std::endl;
+            std::cerr << "Error at line " << reaction_no + 1 << std::endl;
+            std::cerr << "Term in product side of reaction is formatted incorrectly." << std::endl;
+            return 1;
+        }
+
+        for (std::sregex_iterator it_product = std::sregex_iterator(reaction_tokens[PRODUCT_FIELD].begin(), reaction_tokens[PRODUCT_FIELD].end(), term_re);
                 it_product != std::sregex_iterator(); ++it_product){
             std::string cur_term = std::smatch(*it_product).str();
 
@@ -194,6 +301,7 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
             crn.reactions[reaction_no]->product_deltas.emplace_back((unsigned int) std::stoul(coeff_st));
         }
 
+        reaction_tokens.clear();
         reaction_no++;
     }
 
