@@ -34,7 +34,7 @@
 #define THRESH_AMOUNT 3
 #define NUM_INIT_ELEMS 4
 
-void print_error_msg_at_line(const std::string filename, unsigned int line_no, const std::string msg) {
+void print_error_msg_at_line(const std::string &filename, unsigned int line_no, const std::string &msg) {
     std::cerr << "In " << filename << std::endl;
     std::cerr << "Error at line " << line_no + 1 << std::endl;
     std::cerr << msg << std::endl;
