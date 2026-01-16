@@ -181,6 +181,56 @@ int parse_in_input_file(const std::string &in_filename, std::map<std::string, ch
 }
 
 /*
+ * A function that fills the reactant or product of a reaction within a CRN.
+ *
+ * @param reaction_ptr: a unique pointer to a reaction
+ * @param chem_str_to_id: a mapping of chemical names to their chem IDs
+ * @param token: a token containing the reactant or product field
+ * @param field: a field represented as a number
+ * @param r_filename: a string containing the filename
+ * @param reaction_no: an integer corresponding to a line in the .r file
+ * @return 1 of an error has occurred or 0 otherwise
+*/
+int fill_reaction_field(std::unique_ptr<reaction_t> &reaction_ptr, const std::map<std::string, chem_id_t> &chem_str_to_id, const std::string &token,
+                            unsigned int field, const std::string &r_filename, unsigned int reaction_no) {
+    static std::regex term_re("([A-Za-z'][A-Za-z0-9.'_]*) ([1-9][0-9]*)");
+    static std::regex field_re("^([^: ]+ [0-9]+[ ]*)+$");
+
+    std::smatch sm;
+    if (!std::regex_match(token, sm, field_re)) {
+        if (field) {
+            print_error_msg_at_line(r_filename, reaction_no, "Term in product side of reaction is formatted incorrectly.");
+        } else {
+            print_error_msg_at_line(r_filename, reaction_no, "Term in reactant side of reaction is formatted incorrectly.");
+        }
+        return 1;
+    }
+
+    for (std::sregex_iterator it_field = std::sregex_iterator(token.begin(), token.end(), term_re);
+            it_field != std::sregex_iterator(); ++it_field){
+        std::string cur_term = std::smatch(*it_field).str();
+
+        std::string chem_str = std::regex_replace(cur_term, term_re, "$1");
+        std::string coeff_st = std::regex_replace(cur_term, term_re, "$2");
+
+        if (!chem_str_to_id.count(chem_str)) {
+            print_error_msg_at_line(r_filename, reaction_no, chem_str + " is missing in .in file.");
+            return 1;
+        }
+
+        if (field) {
+            reaction_ptr->products.emplace_back(chem_str_to_id.at(chem_str));
+            reaction_ptr->product_deltas.emplace_back((unsigned int) std::stoul(coeff_st));
+        } else {
+            reaction_ptr->reactants.emplace_back(chem_str_to_id.at(chem_str));
+            reaction_ptr->reactant_deltas.emplace_back((unsigned int) std::stoul(coeff_st));
+        }
+    }
+
+    return 0;
+}
+
+/*
  * A function to parse a .r input file containing the reactions in a CRN.
  *
  * @param r_filename: a string containing the filename
@@ -209,14 +259,10 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
     std::regex cr_char_re("\\r");
 
     unsigned int reaction_no = 0;
-    // std::string reactant_str("");
-    // std::string product_str("");
-    // std::string rate_str("");
-    std::string temp("");
-
     std::vector<std::string> reaction_tokens;
     reaction_tokens.reserve(3);
 
+    std::string temp("");
     while (getline(r_file, temp)) {
         temp = std::regex_replace(temp, cr_char_re, "");
 
@@ -257,41 +303,10 @@ int parse_r_input_file(const std::string &r_filename, const std::map<std::string
             return 1;
         }
 
-        for (std::sregex_iterator it_reactant = std::sregex_iterator(reaction_tokens[REACTANT_FIELD].begin(), reaction_tokens[REACTANT_FIELD].end(), term_re);
-                it_reactant != std::sregex_iterator(); ++it_reactant){
-            std::string cur_term = std::smatch(*it_reactant).str();
-
-            std::string chem_str = std::regex_replace(cur_term, term_re, "$1");
-            std::string coeff_st = std::regex_replace(cur_term, term_re, "$2");
-
-            if (!chem_str_to_id.count(chem_str)) {
-                print_error_msg_at_line(r_filename, reaction_no, chem_str + " is missing in .in file.");
-                return 1;
-            }
-
-            crn.reactions[reaction_no]->reactants.emplace_back(chem_str_to_id.at(chem_str));
-            crn.reactions[reaction_no]->reactant_deltas.emplace_back((unsigned int) std::stoul(coeff_st));
-        }
-
-        if (!std::regex_match(reaction_tokens[PRODUCT_FIELD], sm, field_re)) {
-            print_error_msg_at_line(r_filename, reaction_no, "Term in product side of reaction is formatted incorrectly.");
+        if (fill_reaction_field(crn.reactions[reaction_no], chem_str_to_id, reaction_tokens[REACTANT_FIELD], REACTANT_FIELD, r_filename, reaction_no)) {
             return 1;
-        }
-
-        for (std::sregex_iterator it_product = std::sregex_iterator(reaction_tokens[PRODUCT_FIELD].begin(), reaction_tokens[PRODUCT_FIELD].end(), term_re);
-                it_product != std::sregex_iterator(); ++it_product){
-            std::string cur_term = std::smatch(*it_product).str();
-
-            std::string chem_str = std::regex_replace(cur_term, term_re, "$1");
-            std::string coeff_st = std::regex_replace(cur_term, term_re, "$2");
-
-            if (!chem_str_to_id.count(chem_str)) {
-                print_error_msg_at_line(r_filename, reaction_no, chem_str + " is missing in .in file.");
-                return 1;
-            }
-
-            crn.reactions[reaction_no]->products.emplace_back(chem_str_to_id.at(chem_str));
-            crn.reactions[reaction_no]->product_deltas.emplace_back((unsigned int) std::stoul(coeff_st));
+        } else if (fill_reaction_field(crn.reactions[reaction_no], chem_str_to_id, reaction_tokens[PRODUCT_FIELD], PRODUCT_FIELD, r_filename, reaction_no)) {
+            return 1;
         }
 
         reaction_tokens.clear();
