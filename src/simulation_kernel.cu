@@ -519,7 +519,14 @@ unsigned int choose_reaction(unsigned int *candidate_reactions, unsigned int num
  * The master function that handles device memory needed for the simulation and transfers to and from it, performs computation needed for
  * said simulation, and some error handling outside of kernel functions.
  *
- * @params: Way too many to list. Just look at the function.
+ * @param post_trial_chem_amounts_h: host-side copy of the chemical amounts after the trial
+ * @param total_count_triggered_threshs_h: host-side copy of the total count of all times a threshold has been triggered for all trials
+ * @param crn_h: host-side copy of CRN
+ * @param sim_params: simulation parameters containing time and step limits
+ * @param out_stats: the time and steps elasped for the trial
+ * @param trial_num: the trial number
+ *
+ * @return ret_err: an error code
 */
 extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_count_triggered_threshs_h,
                                         crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
