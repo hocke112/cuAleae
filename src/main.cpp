@@ -19,6 +19,7 @@
 #include <regex>
 #include <chrono>
 #include <iomanip>
+#include <cstring>
 #include <unordered_map>
 #include "host_data_structures.hpp"
 #include "device_data_structures.h"
@@ -310,7 +311,7 @@ int main (int argc, char *argv[]) {
     simulation_err_t err = SIMULATION_SUCCESS;
     unsigned int *post_trial_chem_amounts = (unsigned int*) malloc(crn_trial_copy.num_chems * sizeof(unsigned int));
     unsigned int *total_count_triggered_threshs = (unsigned int*) malloc(crn_trial_copy.num_chems * sizeof(unsigned int));
-    memset(total_count_triggered_threshs, 0, crn_trial_copy.num_chems * sizeof(unsigned int));
+    std::memset(total_count_triggered_threshs, 0, crn_trial_copy.num_chems * sizeof(unsigned int));
 
     output_stats_t trial_stats;
     for(int i = 0; i < num_trials; ++i){
