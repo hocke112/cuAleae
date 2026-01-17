@@ -35,7 +35,7 @@ enum simulation_err_t {
     THRESH_CODE_ERR      = 4
 };
 
-extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amounts, unsigned int *total_triggered_threshs_h,
+extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amounts, unsigned int *total_count_triggered_threshs_h,
                                                 crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
                                                 unsigned int trial_num);
 

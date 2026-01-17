@@ -391,7 +391,7 @@ __global__ void check_thresholds(bool *within_threshold, chem_arr_t chem_arrays,
     }
 }
 
-__global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs, int *invalid_thresh_type, chem_arr_t chem_arrays, unsigned int num_chems) {
+__global__ void count_triggered_thresholds(unsigned int *total_count_triggered_threshs, int *invalid_thresh_type, chem_arr_t chem_arrays, unsigned int num_chems) {
     unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     __shared__ int local_invalid_thresh_type;
@@ -405,22 +405,22 @@ __global__ void count_triggered_thresholds(unsigned int *total_triggered_threshs
         switch(chem_arrays.thresh_types[i]) {
             case THRESH_LT:
                 if (chem_arrays.chem_amounts[i] < chem_arrays.thresh_amounts[i]) {
-                    total_triggered_threshs[i]++;
+                    total_count_triggered_threshs[i]++;
                 }
                 break;
             case THRESH_LE:
                 if (chem_arrays.chem_amounts[i] <= chem_arrays.thresh_amounts[i]) {
-                    total_triggered_threshs[i]++;
+                    total_count_triggered_threshs[i]++;
                 }
             break;
             case THRESH_GE:
                 if (chem_arrays.chem_amounts[i] >= chem_arrays.thresh_amounts[i]) {
-                    total_triggered_threshs[i]++;
+                    total_count_triggered_threshs[i]++;
                 }
                 break;
             case THRESH_GT:
                 if (chem_arrays.chem_amounts[i] > chem_arrays.thresh_amounts[i]) {
-                    total_triggered_threshs[i]++;
+                    total_count_triggered_threshs[i]++;
                 }
                 break;
             case THRESH_N:
@@ -521,7 +521,7 @@ unsigned int choose_reaction(unsigned int *candidate_reactions, unsigned int num
  *
  * @params: Way too many to list. Just look at the function.
 */
-extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_triggered_threshs_h,
+extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amounts_h, unsigned int *total_count_triggered_threshs_h,
                                         crn_t crn_h, sim_params_t sim_params, output_stats_t *out_stats,
                                         unsigned int trial_num) {
     simulation_err_t ret_err = SIMULATION_SUCCESS;
@@ -600,7 +600,7 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
     cudaMemsetAsync(propensity_inclusive_sums, 0.0, padded_num_reactions * sizeof(float), propensity_stream);
     cudaMemsetAsync(propensity_block_sums, 0.0, crn_h.num_reactions * sizeof(float), propensity_stream);
 
-    cudaMemcpyAsync(total_triggered_threshs_d, total_triggered_threshs_h, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, sim_stream);
+    cudaMemcpyAsync(total_triggered_threshs_d, total_count_triggered_threshs_h, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyHostToDevice, sim_stream);
     cudaMemsetAsync(is_thresh_type_invalid, 0, sizeof(int), sim_stream);
 
     cudaDeviceSynchronize();
@@ -730,7 +730,7 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
         cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
         if (!within_threshold) {
-            cudaMemcpy(total_triggered_threshs_h, total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+            cudaMemcpy(total_count_triggered_threshs_h, total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
             if (sim_params.verbosity_bit_fields & PRINT_STATES) {
                 printf("State after threshold [");
