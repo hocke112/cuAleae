@@ -732,9 +732,10 @@ extern "C" simulation_err_t simulation_master(unsigned int *post_trial_chem_amou
         }
     }
 
-    // If print states was enabled, then an up-to-date host-side copy of the chem amounts already exists. Therefore, don't copy it again.
     if (ret_err == SIMULATION_SUCCESS) {
-        cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        // If print states was enabled, then an up-to-date host-side copy of the chem amounts already exists. Therefore, don't copy it again.
+        if (!(sim_params.verbosity_bit_fields & PRINT_STATES))
+            cudaMemcpy(post_trial_chem_amounts_h, chem_arrays_d.chem_amounts, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
 
         if (!within_threshold) {
             cudaMemcpy(total_count_triggered_threshs_h, total_triggered_threshs_d, crn_h.num_chems * sizeof(unsigned int), cudaMemcpyDeviceToHost);
